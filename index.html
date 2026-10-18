@@ -1,15 +1,17 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Itaewon & Co. POS</title>
-  <link rel="stylesheet" href="style.css?v=20261019-6">
+  <meta name="theme-color" content="#111210">
+  <title>Itaewon &amp; Co. POS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="style.css?v=20261019-7">
 </head>
 <body>
   <aside class="sidebar">
-    <div class="brand"><span>&amp;</span><div><b>ITAEWON & CO.</b><small>POINT OF SALE</small></div></div>
+    <div class="brand"><span>&amp;</span><div><b>ITAEWON &amp; CO.</b><small>POINT OF SALE</small></div></div>
     <nav>
       <button data-page="pos" class="active">POS / Checkout</button>
       <button data-page="products">Products</button>
@@ -19,26 +21,25 @@
       <button data-page="expenses">Expenses</button>
       <button data-page="settings">Backup / Settings</button>
     </nav>
-    <small class="foot">LOCAL POS SYSTEM</small>
+    <small class="foot">LOCAL POS SYSTEM · CAMARIN</small>
   </aside>
-
   <main>
-    <header><div><small>STORE MANAGEMENT</small><h1 id="title">POS / Checkout</h1></div><span id="date"></span></header>
+    <header><div><small>ITAEWON &amp; CO. / STORE MANAGEMENT</small><h1 id="title">POS / Checkout</h1></div><span id="date"></span></header>
     <div id="app"></div>
   </main>
   <div id="toast"></div>
   <script>
     window.addEventListener('error', function (event) {
       var app = document.getElementById('app');
-      if (app) app.innerHTML = '<section style="padding:20px;background:#fff0f0;border:1px solid #d33;border-radius:12px;color:#811"><h2>POS script error</h2><p>' + String(event.message || 'JavaScript failed to load') + '</p><p>Refresh the page. If this message remains, send a screenshot to support.</p></section>';
+      if (app) app.innerHTML = '<section style="padding:20px;background:#301c19;border:1px solid #ff685d;border-radius:12px;color:#ffd8d4"><h2>POS script error</h2><p>' + String(event.message || 'JavaScript failed to load') + '</p><p>Refresh the page. If this message remains, send a screenshot to support.</p></section>';
       console.error('POS runtime error:', event.message, event.filename, event.lineno);
     });
     window.addEventListener('unhandledrejection', function (event) {
       var app = document.getElementById('app');
-      if (app) app.innerHTML = '<section style="padding:20px;background:#fff0f0;border:1px solid #d33;border-radius:12px;color:#811"><h2>POS startup error</h2><p>' + String(event.reason || 'Unexpected startup error') + '</p></section>';
+      if (app) app.innerHTML = '<section style="padding:20px;background:#301c19;border:1px solid #ff685d;border-radius:12px;color:#ffd8d4"><h2>POS startup error</h2><p>' + String(event.reason || 'Unexpected startup error') + '</p></section>';
       console.error('POS promise error:', event.reason);
     });
   </script>
-  <script src="app.js?v=20261019-6" onerror="document.getElementById('app').innerHTML='<section style=&quot;padding:20px;background:#fff0f0;border:1px solid #d33;border-radius:12px;color:#811&quot;><h2>POS JavaScript failed to load</h2><p>The browser could not load app.js. Check the GitHub Pages deployment and refresh.</p></section>'"></script>
+  <script src="app.js?v=20261019-7" onerror="document.getElementById('app').innerHTML='<section style=&quot;padding:20px;background:#301c19;border:1px solid #ff685d;border-radius:12px;color:#ffd8d4&quot;><h2>POS JavaScript failed to load</h2><p>The browser could not load app.js. Check the GitHub Pages deployment and refresh.</p></section>'"></script>
 </body>
 </html>
