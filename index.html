@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Itaewon & Co. POS</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=20261019-2">
 </head>
 <body>
   <aside class="sidebar">
@@ -26,6 +26,18 @@
     <div id="app"></div>
   </main>
   <div id="toast"></div>
-  <script src="app.js"></script>
+  <script>
+    window.addEventListener('error', function (event) {
+      var app = document.getElementById('app');
+      if (app) app.innerHTML = '<section style="padding:20px;background:#fff0f0;border:1px solid #d33;border-radius:12px;color:#811"><h2>POS script error</h2><p>' + String(event.message || 'JavaScript failed to load') + '</p><p>Refresh the page. If this message remains, send a screenshot to support.</p></section>';
+      console.error('POS runtime error:', event.message, event.filename, event.lineno);
+    });
+    window.addEventListener('unhandledrejection', function (event) {
+      var app = document.getElementById('app');
+      if (app) app.innerHTML = '<section style="padding:20px;background:#fff0f0;border:1px solid #d33;border-radius:12px;color:#811"><h2>POS startup error</h2><p>' + String(event.reason || 'Unexpected startup error') + '</p></section>';
+      console.error('POS promise error:', event.reason);
+    });
+  </script>
+  <script src="app.js?v=20261019-2"></script>
 </body>
 </html>
