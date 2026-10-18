@@ -2,6 +2,7 @@
 
 :root{--ink:#f4f0e7;--muted:#a6a39a;--paper:#111210;--card:#1b1d19;--accent:#c8ff38;--line:#343730;--green:#c8ff38;--red:#ff685d;--orange:#ff7043;--radius:18px}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html{scroll-behavior:smooth}
 body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 'Space Grotesk',system-ui,-apple-system,Segoe UI,sans-serif;display:flex;min-height:100vh;background-image:radial-gradient(ellipse at 85% 0%,#c8ff380b,transparent 35%),linear-gradient(135deg,#111210 0%,#151713 60%,#10110f 100%)}
 button,.btn,input,select,textarea{font:inherit}
