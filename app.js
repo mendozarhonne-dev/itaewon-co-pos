@@ -1,393 +1,48 @@
 
-const KEY = "itaewon_pos_v1";
-
-const sampleProducts = [
-  {id:1,name:"Americano",category:"Coffee",price:39,cost:12,stock:100},
-  {id:2,name:"Cafe Latte",category:"Coffee",price:49,cost:18,stock:100},
-  {id:3,name:"Caramel Latte",category:"Coffee",price:59,cost:22,stock:100},
-  {id:4,name:"Caramel Matcha Latte",category:"Matcha",price:67,cost:28,stock:50},
-  {id:5,name:"Milk Tea",category:"Milk Tea",price:49,cost:20,stock:80},
-  {id:6,name:"Fruit Soda",category:"Non-Coffee",price:39,cost:14,stock:80},
-  {id:7,name:"Fries",category:"Food",price:45,cost:25,stock:40},
-  {id:8,name:"Chicken Wings",category:"Food",price:99,cost:60,stock:30}
-];
-
-function loadData() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(KEY));
-    if (saved && Array.isArray(saved.products)) {
-      return {
-        products: saved.products,
-        orders: saved.orders || [],
-        expenses: saved.expenses || [],
-        nextId: saved.nextId || 9
-      };
-    }
-  } catch(e) {}
-  return {
-    products: sampleProducts.map(p => ({...p})),
-    orders: [],
-    expenses: [],
-    nextId: 9
-  };
+(function(){
+'use strict';
+const KEY='itaewon_co_pos_v3';
+const seed={
+ products:[
+  {id:1,name:'Americano',category:'Coffee',price:39,stock:100,cost:12},
+  {id:2,name:'Caramel Latte',category:'Coffee',price:59,stock:100,cost:23},
+  {id:3,name:'Caramel Matcha Latte',category:'Matcha',price:67,stock:100,cost:28},
+  {id:4,name:'Milk Tea',category:'Milk Tea',price:49,stock:100,cost:20},
+  {id:5,name:'Fries',category:'Food',price:45,stock:100,cost:22}
+ ],sales:[],expenses:[],nextId:6,pin:'1234',store:'Itaewon & Co.'
+};
+let db=load(),page='pos',cart=[],lastReceipt=null;
+const app=document.getElementById('app'),title=document.getElementById('title'),toastBox=document.getElementById('toast');
+document.getElementById('date').textContent=new Date().toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+function load(){try{const x=JSON.parse(localStorage.getItem(KEY));if(x&&Array.isArray(x.products)&&Array.isArray(x.sales))return Object.assign(seed,x)}catch(e){}return JSON.parse(JSON.stringify(seed))}
+function save(){localStorage.setItem(KEY,JSON.stringify(db))}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function money(n){return '₱'+Number(n||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2})}
+function today(){return new Date().toLocaleDateString('en-CA')}
+function notify(s){toastBox.textContent=s;toastBox.style.display='block';setTimeout(()=>toastBox.style.display='none',2600)}
+function setPage(p){page=p;document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===p));const names={pos:'POS / Checkout',products:'Products',inventory:'Inventory',sales:'Sales Reports',expenses:'Expenses',settings:'Backup / Settings'};title.textContent=names[p]||'POS';render()}
+document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>setPage(b.dataset.page)));
+function sumSales(list){return list.reduce((a,s)=>a+Number(s.total||0),0)}
+function render(){if(page==='pos')renderPOS();else if(page==='products')renderProducts();else if(page==='inventory')renderInventory();else if(page==='sales')renderSales();else if(page==='expenses')renderExpenses();else renderSettings()}
+function renderPOS(){
+ let subtotal=cart.reduce((a,c)=>a+c.price*c.qty,0);
+ app.innerHTML='<div class="two"><section class="card"><div class="row between wrap"><div><h2>Menu</h2><div class="muted">Tap a product to add it to the order.</div></div><input class="search" id="productSearch" placeholder="Search products"></div><div class="spacer"></div><div id="productList" class="products"></div></section><section class="card"><div class="row between"><h2>Current order</h2><button class="secondary smallbtn" id="clearCart">Clear</button></div><div id="cartList"></div><div class="row between"><span class="muted">Total</span><span class="total" id="cartTotal">'+money(subtotal)+'</span></div><label>Payment method</label><select id="payment"><option>Cash</option><option>GCash</option><option>Card</option><option>Other</option></select><label>Amount received</label><input id="received" type="number" min="0" step=".01" placeholder="Enter amount received"><div class="row between spacer"><span class="muted">Change</span><b id="change">'+money(0)+'</b></div><button class="primary" id="checkout" style="width:100%;margin-top:14px">Complete sale & print receipt</button><p class="muted">Sales are saved on this device only.</p></section></div>';
+ const list=document.getElementById('productList');
+ function showProducts(filter){list.innerHTML='';db.products.filter(p=>p.name.toLowerCase().includes((filter||'').toLowerCase())&&p.active!==false).forEach(p=>{let b=document.createElement('button');b.className='product';b.innerHTML='<b>'+esc(p.name)+'</b><span class="muted">'+esc(p.category||'General')+'</span><div class="price">'+money(p.price)+'</div>';b.onclick=()=>{let found=cart.find(c=>c.id===p.id);if(found)found.qty++;else cart.push({id:p.id,name:p.name,price:Number(p.price),cost:Number(p.cost||0),qty:1});renderCart()};list.appendChild(b)});if(!list.children.length)list.innerHTML='<div class="empty">No products found. Add products in Products.</div>'}
+ function renderCart(){let node=document.getElementById('cartList');node.innerHTML=cart.length?cart.map((c,i)=>'<div class="cartline"><div class="row between"><b>'+esc(c.name)+'</b><b>'+money(c.price*c.qty)+'</b></div><div class="row between"><span class="muted">'+money(c.price)+' each</span><div class="row"><button class="secondary smallbtn" data-dec="'+i+'">−</button><span>'+c.qty+'</span><button class="secondary smallbtn" data-inc="'+i+'">+</button><button class="danger smallbtn" data-del="'+i+'">×</button></div></div></div>').join(''):'<div class="empty">Your order is empty.</div>';document.getElementById('cartTotal').textContent=money(cart.reduce((a,c)=>a+c.price*c.qty,0));node.querySelectorAll('[data-inc]').forEach(b=>b.onclick=()=>{cart[+b.dataset.inc].qty++;renderCart()});node.querySelectorAll('[data-dec]').forEach(b=>b.onclick=()=>{let c=cart[+b.dataset.dec];c.qty--;if(c.qty<=0)cart.splice(+b.dataset.dec,1);renderCart()});node.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{cart.splice(+b.dataset.del,1);renderCart()});updateChange()}
+ function updateChange(){let total=cart.reduce((a,c)=>a+c.price*c.qty,0),received=Number(document.getElementById('received').value||0);document.getElementById('change').textContent=money(Math.max(0,received-total))}
+ showProducts('');document.getElementById('productSearch').oninput=e=>showProducts(e.target.value);document.getElementById('received').oninput=updateChange;
+ document.getElementById('clearCart').onclick=()=>{cart=[];renderCart()};
+ document.getElementById('checkout').onclick=()=>{if(!cart.length)return notify('Add a product first.');let total=cart.reduce((a,c)=>a+c.price*c.qty,0),received=Number(document.getElementById('received').value||0),payment=document.getElementById('payment').value;if(payment==='Cash'&&received<total)return notify('Amount received is less than total.');let sale={id:Date.now(),date:new Date().toISOString(),items:cart.map(c=>({...c})),total,cost:cart.reduce((a,c)=>a+c.cost*c.qty,0),payment,received:payment==='Cash'?received:total,change:payment==='Cash'?received-total:0};db.sales.push(sale);save();cart=[];lastReceipt=sale;renderCart();notify('Sale saved. Printing receipt…');printReceipt(sale)};
+ renderCart()
 }
-
-let db = loadData();
-let cart = [];
-let page = "pos";
-let category = "All";
-let searchText = "";
-
-const money = n => "₱" + Number(n || 0).toLocaleString("en-PH", {
-  minimumFractionDigits:2, maximumFractionDigits:2
-});
-
-const escapeHTML = s => String(s ?? "").replace(/[&<>"']/g, c => ({
-  "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
-}[c]));
-
-function save() {
-  localStorage.setItem(KEY, JSON.stringify(db));
-}
-
-function notify(message) {
-  const t = document.getElementById("toast");
-  t.textContent = message;
-  t.classList.add("show");
-  setTimeout(() => t.classList.remove("show"), 2200);
-}
-
-document.getElementById("date").textContent =
-  new Date().toLocaleDateString(undefined, {
-    weekday:"short", month:"short", day:"numeric", year:"numeric"
-  });
-
-document.querySelectorAll("[data-page]").forEach(button => {
-  button.addEventListener("click", () => {
-    page = button.dataset.page;
-    document.querySelectorAll("[data-page]").forEach(b =>
-      b.classList.toggle("active", b === button)
-    );
-    render();
-  });
-});
-
-function panel(title, body) {
-  return `<section class="panel"><h2>${title}</h2>${body}</section>`;
-}
-
-function render() {
-  const titles = {
-    pos:"POS / Checkout", products:"Products", inventory:"Inventory",
-    sales:"Sales Reports", expenses:"Expenses", settings:"Backup / Settings"
-  };
-  document.getElementById("title").textContent = titles[page];
-  const app = document.getElementById("app");
-  app.innerHTML = ({
-    pos:posPage, products:productsPage, inventory:inventoryPage,
-    sales:salesPage, expenses:expensesPage, settings:settingsPage
-  })();
-  bind();
-}
-
-function posPage() {
-  const categories = ["All", ...new Set(db.products.map(p=>p.category))];
-  const products = db.products.filter(p =>
-    (category === "All" || p.category === category) &&
-    p.name.toLowerCase().includes(searchText.toLowerCase())
-  );
-  const total = cart.reduce((s,p)=>s+p.price*p.qty,0);
-
-  return `<div class="layout">
-    ${panel("Menu", `
-      <input id="search" class="search" placeholder="Search products..."
-        value="${escapeHTML(searchText)}">
-      <div class="categories">
-        ${categories.map(c=>`<button class="chip ${category===c?"active":""}"
-          data-category="${escapeHTML(c)}">${escapeHTML(c)}</button>`).join("")}
-      </div>
-      <div class="products">
-        ${products.map(p=>`<button class="product" data-add="${p.id}">
-          <b>${escapeHTML(p.name)}</b>
-          <small>${escapeHTML(p.category)}</small>
-          <span class="price">${money(p.price)}</span>
-        </button>`).join("") || '<div class="empty">No products found.</div>'}
-      </div>
-    `)}
-    ${panel("Current Order", `
-      <div class="row"><span class="muted">Items in cart</span>
-        <button class="btn secondary" id="clear">Clear</button></div>
-      ${cart.map(p=>`<div class="cart-item">
-        <div><b>${escapeHTML(p.name)}</b><br><span class="muted">${money(p.price)}</span></div>
-        <div class="qty">
-          <button data-minus="${p.id}">−</button><b>${p.qty}</b>
-          <button data-plus="${p.id}">+</button>
-        </div>
-      </div>`).join("") || '<div class="empty">Add a product to begin.</div>'}
-      <div class="totals">
-        <div class="total-row"><span>Subtotal</span><b>${money(total)}</b></div>
-        <div class="total-row grand"><span>Total</span><span>${money(total)}</span></div>
-      </div>
-      <div class="field"><label>Cash received (₱)</label>
-        <input id="cash" type="number" min="0" step=".01" placeholder="${total.toFixed(2)}">
-      </div>
-      <div class="total-row"><span>Change</span><b id="change">${money(0)}</b></div>
-      <button class="btn primary full" id="checkout" ${cart.length?"":"disabled"}>
-        Complete Sale
-      </button>
-    `)}
-  </div>`;
-}
-
-function productsPage() {
-  return panel("Menu Products", `
-    <button class="btn primary" id="add-product">+ Add Product</button>
-    <div class="table-wrap"><table>
-      <thead><tr><th>Product</th><th>Category</th><th>Price</th>
-      <th>Cost</th><th>Stock</th><th>Actions</th></tr></thead>
-      <tbody>${db.products.map(p=>`<tr>
-        <td>${escapeHTML(p.name)}</td><td>${escapeHTML(p.category)}</td>
-        <td>${money(p.price)}</td><td>${money(p.cost)}</td><td>${p.stock}</td>
-        <td><button class="btn secondary" data-edit="${p.id}">Edit</button>
-        <button class="btn secondary" data-delete="${p.id}">Delete</button></td>
-      </tr>`).join("")}</tbody>
-    </table></div>
-  `);
-}
-
-function inventoryPage() {
-  return panel("Inventory", `
-    <p class="muted">Stock is tracked by sellable product. Ingredient recipes are not included yet.</p>
-    <div class="table-wrap"><table>
-      <thead><tr><th>Product</th><th>Stock</th><th>New stock</th><th>Status</th></tr></thead>
-      <tbody>${db.products.map(p=>`<tr>
-        <td>${escapeHTML(p.name)}</td><td>${p.stock}</td>
-        <td><input type="number" min="0" id="stock-${p.id}" value="${p.stock}">
-          <button class="btn secondary" data-stock="${p.id}">Save</button></td>
-        <td>${p.stock<=10?'<b style="color:#b33">Low stock</b>':"In stock"}</td>
-      </tr>`).join("")}</tbody>
-    </table></div>
-  `);
-}
-
-function salesPage() {
-  const day = new Date().toDateString();
-  const today = db.orders.filter(o=>new Date(o.date).toDateString()===day);
-  const total = today.reduce((s,o)=>s+o.total,0);
-  const cost = today.reduce((s,o)=>s+o.cost,0);
-  const expenses = db.expenses.filter(e=>new Date(e.date).toDateString()===day)
-    .reduce((s,e)=>s+e.amount,0);
-
-  return `<div class="metrics">
-    <div class="metric"><small>Today's Sales</small><strong>${money(total)}</strong></div>
-    <div class="metric"><small>Orders Today</small><strong>${today.length}</strong></div>
-    <div class="metric"><small>Estimated Net</small><strong>${money(total-cost-expenses)}</strong></div>
-  </div>${panel("Order History", `
-    <button class="btn primary" id="export-sales">Export CSV</button>
-    <div class="table-wrap"><table><thead><tr>
-      <th>Date</th><th>Items</th><th>Total</th><th>Est. Cost</th><th>Cash</th>
-    </tr></thead><tbody>
-      ${[...db.orders].reverse().map(o=>`<tr>
-        <td>${new Date(o.date).toLocaleString()}</td>
-        <td>${o.items.map(i=>`${escapeHTML(i.name)} ×${i.qty}`).join(", ")}</td>
-        <td>${money(o.total)}</td><td>${money(o.cost)}</td><td>${money(o.cash)}</td>
-      </tr>`).join("") || '<tr><td colspan="5">No sales yet.</td></tr>'}
-    </tbody></table></div>
-  `)}`;
-}
-
-function expensesPage() {
-  return `<div class="layout">
-    ${panel("Record Expense", `<form id="expense-form">
-      <div class="field"><label>Description</label><input name="name" required placeholder="Milk, cups, electricity..."></div>
-      <div class="field"><label>Amount (₱)</label><input name="amount" type="number" min=".01" step=".01" required></div>
-      <button class="btn primary">Save Expense</button>
-    </form>`)}
-    ${panel("Expense History", `<div class="table-wrap"><table>
-      <thead><tr><th>Date</th><th>Description</th><th>Amount</th></tr></thead>
-      <tbody>${[...db.expenses].reverse().map(e=>`<tr>
-        <td>${new Date(e.date).toLocaleDateString()}</td>
-        <td>${escapeHTML(e.name)}</td><td>${money(e.amount)}</td>
-      </tr>`).join("") || '<tr><td colspan="3">No expenses yet.</td></tr>'}</tbody>
-    </table></div>`)}
-  </div>`;
-}
-
-function settingsPage() {
-  return panel("Data Backup", `
-    <p>Your records are saved in this browser on this device.</p>
-    <button class="btn primary" id="backup">Download Backup</button>
-    <label class="btn secondary">Import Backup
-      <input type="file" id="restore" accept=".json,application/json" hidden>
-    </label>
-    <p class="notice">Export backups regularly. This version has no secure login and does not synchronize between devices.</p>
-    <button class="btn secondary" id="reset">Reset Sample Data</button>
-  `);
-}
-
-function download(name, content, type) {
-  const url = URL.createObjectURL(new Blob([content],{type}));
-  const a = document.createElement("a");
-  a.href=url; a.download=name; a.click();
-  setTimeout(()=>URL.revokeObjectURL(url),1000);
-}
-
-function csv(rows) {
-  return rows.map(row=>row.map(v=>
-    '"' + String(v ?? "").replace(/"/g,'""') + '"'
-  ).join(",")).join("\r\n");
-}
-
-function bind() {
-  document.querySelectorAll("[data-category]").forEach(b=>b.onclick=()=>{
-    category=b.dataset.category; render();
-  });
-
-  const search=document.getElementById("search");
-  if(search) search.oninput=e=>{
-    searchText=e.target.value;
-    const cursor=search.selectionStart;
-    render();
-    const next=document.getElementById("search");
-    next.focus(); next.setSelectionRange(cursor,cursor);
-  };
-
-  document.querySelectorAll("[data-add]").forEach(b=>b.onclick=()=>{
-    const p=db.products.find(p=>p.id===+b.dataset.add);
-    if(p.stock<1){notify("Out of stock.");return;}
-    const item=cart.find(x=>x.id===p.id);
-    if(item){
-      if(item.qty>=p.stock){notify("Not enough stock.");return;}
-      item.qty++;
-    } else cart.push({...p,qty:1});
-    render();
-  });
-
-  document.querySelectorAll("[data-minus]").forEach(b=>b.onclick=()=>{
-    const item=cart.find(p=>p.id===+b.dataset.minus);
-    item.qty--;
-    if(item.qty<=0) cart=cart.filter(p=>p!==item);
-    render();
-  });
-
-  document.querySelectorAll("[data-plus]").forEach(b=>b.onclick=()=>{
-    const item=cart.find(p=>p.id===+b.dataset.plus);
-    const p=db.products.find(p=>p.id===item.id);
-    if(item.qty>=p.stock){notify("Not enough stock.");return;}
-    item.qty++; render();
-  });
-
-  const clear=document.getElementById("clear");
-  if(clear) clear.onclick=()=>{cart=[];render();};
-
-  const cash=document.getElementById("cash");
-  if(cash) cash.oninput=()=>{
-    const total=cart.reduce((s,p)=>s+p.price*p.qty,0);
-    document.getElementById("change").textContent=
-      money(Math.max(0,Number(cash.value||0)-total));
-  };
-
-  const checkout=document.getElementById("checkout");
-  if(checkout) checkout.onclick=()=>{
-    const total=cart.reduce((s,p)=>s+p.price*p.qty,0);
-    const received=Number(document.getElementById("cash").value || total);
-    if(received<total){notify("Cash is less than the total.");return;}
-    for(const item of cart){
-      const p=db.products.find(p=>p.id===item.id);
-      if(!p || p.stock<item.qty){notify("Check stock before checkout.");return;}
-    }
-    const order={
-      id:Date.now(),date:new Date().toISOString(),
-      items:cart.map(p=>({id:p.id,name:p.name,qty:p.qty,price:p.price,cost:p.cost})),
-      total,cost:cart.reduce((s,p)=>s+p.cost*p.qty,0),cash:received
-    };
-    order.items.forEach(i=>db.products.find(p=>p.id===i.id).stock-=i.qty);
-    db.orders.push(order); save(); cart=[]; render();
-    notify("Sale saved successfully.");
-  };
-
-  const add=document.getElementById("add-product");
-  if(add) add.onclick=()=>{
-    const name=prompt("Product name?");
-    if(!name?.trim())return;
-    const category=prompt("Category?","Coffee")||"Other";
-    const price=Number(prompt("Selling price in pesos?","39"));
-    const cost=Number(prompt("Estimated cost per item?","12"));
-    const stock=Number(prompt("Starting stock?","100"));
-    if(!Number.isFinite(price)||price<0||!Number.isFinite(cost)||cost<0||
-       !Number.isFinite(stock)||stock<0){notify("Invalid number.");return;}
-    db.products.push({id:db.nextId++,name:name.trim(),category,price,cost,stock});
-    save();render();
-  };
-
-  document.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>{
-    const p=db.products.find(p=>p.id===+b.dataset.edit);
-    const name=prompt("Product name:",p.name);
-    if(name===null)return;
-    const price=Number(prompt("Selling price:",p.price));
-    const cost=Number(prompt("Estimated cost:",p.cost));
-    const cat=prompt("Category:",p.category);
-    if(!Number.isFinite(price)||price<0||!Number.isFinite(cost)||cost<0){
-      notify("Invalid number.");return;
-    }
-    p.name=name.trim()||p.name;p.price=price;p.cost=cost;p.category=cat||p.category;
-    save();render();
-  });
-
-  document.querySelectorAll("[data-delete]").forEach(b=>b.onclick=()=>{
-    if(confirm("Delete this product?")){
-      db.products=db.products.filter(p=>p.id!==+b.dataset.delete);
-      cart=cart.filter(p=>p.id!==+b.dataset.delete);
-      save();render();
-    }
-  });
-
-  document.querySelectorAll("[data-stock]").forEach(b=>b.onclick=()=>{
-    const p=db.products.find(p=>p.id===+b.dataset.stock);
-    const value=Number(document.getElementById("stock-"+p.id).value);
-    if(!Number.isFinite(value)||value<0){notify("Invalid stock quantity.");return;}
-    p.stock=value;save();render();notify("Stock updated.");
-  });
-
-  const form=document.getElementById("expense-form");
-  if(form) form.onsubmit=e=>{
-    e.preventDefault();
-    const data=new FormData(form);
-    db.expenses.push({date:new Date().toISOString(),
-      name:data.get("name").trim(),amount:Number(data.get("amount"))});
-    save();render();notify("Expense saved.");
-  };
-
-  const exportSales=document.getElementById("export-sales");
-  if(exportSales) exportSales.onclick=()=>download("itaewon-sales.csv",
-    csv([["Date","Items","Total","Estimated Cost","Cash"],
-      ...db.orders.map(o=>[o.date,o.items.map(i=>`${i.name} x${i.qty}`).join("; "),o.total,o.cost,o.cash])]),
-    "text/csv");
-
-  const backup=document.getElementById("backup");
-  if(backup) backup.onclick=()=>download("itaewon-pos-backup.json",
-    JSON.stringify(db,null,2),"application/json");
-
-  const restore=document.getElementById("restore");
-  if(restore) restore.onchange=async()=>{
-    try {
-      const file=restore.files[0]; if(!file)return;
-      const data=JSON.parse(await file.text());
-      if(!Array.isArray(data.products)||!Array.isArray(data.orders)||
-         !Array.isArray(data.expenses)) throw Error("Invalid backup");
-      db={products:data.products,orders:data.orders,expenses:data.expenses,
-        nextId:data.nextId||9};
-      save();cart=[];render();notify("Backup imported.");
-    } catch(e){notify("Invalid backup file.");}
-  };
-
-  const reset=document.getElementById("reset");
-  if(reset) reset.onclick=()=>{
-    if(confirm("Erase this browser's POS data and restore the sample menu?")){
-      db={products:sampleProducts.map(p=>({...p})),orders:[],expenses:[],nextId:9};
-      cart=[];save();render();notify("Sample data restored.");
-    }
-  };
-}
-
+function printReceipt(s){let w=window.open('','_blank','width=360,height=650');if(!w){notify('Sale saved. Allow pop-ups to print receipt.');return}w.document.write('<!doctype html><html><head><title>Receipt</title><style>body{font:13px monospace;padding:18px;max-width:300px;margin:auto}h2,p{text-align:center}hr{border:0;border-top:1px dashed #555}table{width:100%;font:inherit}td:last-child{text-align:right}.right{text-align:right}</style></head><body><h2>'+esc(db.store)+'</h2><p>SALES RECEIPT</p><hr><p style="text-align:left">Order: '+esc(s.id)+'<br>'+new Date(s.date).toLocaleString()+'</p><hr><table>'+s.items.map(i=>'<tr><td>'+esc(i.name)+' x'+i.qty+'</td><td>'+money(i.price*i.qty)+'</td></tr>').join('')+'</table><hr><h3 class="right">TOTAL '+money(s.total)+'</h3><p style="text-align:left">Payment: '+esc(s.payment)+'<br>Received: '+money(s.received)+'<br>Change: '+money(s.change)+'</p><hr><p>Thank you! See you again.</p><script>window.onload=()=>window.print()<\/script></body></html>');w.document.close()}
+function renderProducts(){app.innerHTML='<section class="card"><h2>Add a product</h2><form id="productForm" class="formgrid"><div><label>Product name</label><input name="name" required></div><div><label>Category</label><input name="category" placeholder="Coffee, Matcha, Food"></div><div><label>Selling price (₱)</label><input name="price" type="number" min="0" step=".01" required></div><div><label>Estimated unit cost (₱)</label><input name="cost" type="number" min="0" step=".01" value="0"></div><div class="wide"><button class="primary">Add product</button></div></form></section><div class="spacer"></div><section class="card"><div class="row between"><h2>Product list</h2><span class="muted">'+db.products.length+' products</span></div><div class="tablewrap"><table><thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Cost</th><th>Est. profit</th><th></th></tr></thead><tbody>'+db.products.map(p=>'<tr><td><b>'+esc(p.name)+'</b></td><td>'+esc(p.category||'—')+'</td><td>'+money(p.price)+'</td><td>'+money(p.cost)+'</td><td>'+money(p.price-p.cost)+'</td><td><button class="danger smallbtn" data-remove="'+p.id+'">Delete</button></td></tr>').join('')+'</tbody></table></div></section>';
+ document.getElementById('productForm').onsubmit=e=>{e.preventDefault();let f=new FormData(e.target),p={id:db.nextId++,name:String(f.get('name')).trim(),category:String(f.get('category')||'General').trim(),price:Number(f.get('price')),cost:Number(f.get('cost')||0),stock:100};if(!p.name||p.price<0)return;db.products.push(p);save();renderProducts();notify('Product added.')};app.querySelectorAll('[data-remove]').forEach(b=>b.onclick=()=>{let p=db.products.find(p=>p.id===+b.dataset.remove);if(p&&confirm('Delete '+p.name+'?')){db.products=db.products.filter(x=>x.id!==p.id);save();renderProducts();notify('Product deleted.')}})}
+function renderInventory(){app.innerHTML='<section class="card"><h2>Inventory tracker</h2><p class="muted">Set a simple on-hand quantity for each product. Quantities are adjusted manually in this version.</p><div class="tablewrap"><table><thead><tr><th>Product</th><th>Category</th><th>On hand</th><th>Update</th></tr></thead><tbody>'+db.products.map(p=>'<tr><td>'+esc(p.name)+'</td><td>'+esc(p.category||'—')+'</td><td>'+Number(p.stock||0)+'</td><td><form class="row" data-stock="'+p.id+'"><input type="number" min="0" name="stock" value="'+Number(p.stock||0)+'" style="max-width:100px"><button class="primary smallbtn">Save</button></form></td></tr>').join('')+'</tbody></table></div></section><div class="spacer"></div><section class="card"><h3>Inventory notes</h3><p class="muted">This basic tracker stores product quantities. Ingredient-level recipes and automatic ingredient deduction are not configured in this version.</p></section>';app.querySelectorAll('[data-stock]').forEach(form=>form.onsubmit=e=>{e.preventDefault();let p=db.products.find(p=>p.id===+form.dataset.stock);if(p){p.stock=Math.max(0,Number(new FormData(form).get('stock')||0));save();renderInventory();notify('Stock updated.')}})}
+function renderSales(){let sales=db.sales.slice().sort((a,b)=>b.id-a.id),todaySales=sales.filter(s=>s.date.slice(0,10)===today()),total=sumSales(todaySales),all=sumSales(sales),profit=sales.reduce((a,s)=>a+(s.total-(s.cost||0)),0);app.innerHTML='<div class="grid"><div class="card"><div class="muted">Today sales</div><div class="stat">'+money(total)+'</div><div class="muted">'+todaySales.length+' orders</div></div><div class="card"><div class="muted">All-time sales</div><div class="stat">'+money(all)+'</div><div class="muted">'+sales.length+' orders</div></div><div class="card"><div class="muted">Estimated gross profit</div><div class="stat">'+money(profit)+'</div><div class="muted">Uses estimated product costs</div></div></div><div class="spacer"></div><section class="card"><div class="row between wrap"><h2>Order history</h2><button class="secondary" id="exportSales">Export CSV</button></div><div class="tablewrap"><table><thead><tr><th>Order / date</th><th>Items</th><th>Payment</th><th>Total</th><th></th></tr></thead><tbody>'+sales.map(s=>'<tr><td>#'+esc(s.id)+'<br><span class="muted">'+new Date(s.date).toLocaleString()+'</span></td><td>'+s.items.map(i=>esc(i.name)+' ×'+i.qty).join('<br>')+'</td><td>'+esc(s.payment)+'</td><td>'+money(s.total)+'</td><td><button class="secondary smallbtn" data-reprint="'+s.id+'">Receipt</button></td></tr>').join('')+'</tbody></table></div>'+(sales.length?'':'<div class="empty">No sales recorded yet.</div>')+'</section>';document.getElementById('exportSales').onclick=()=>download('itaewon-sales.csv','Order ID,Date,Payment,Total,Estimated Cost,Estimated Profit\\n'+sales.map(s=>[s.id,s.date,s.payment,s.total,s.cost||0,s.total-(s.cost||0)].join(',')).join('\\n'));app.querySelectorAll('[data-reprint]').forEach(b=>b.onclick=()=>{let s=db.sales.find(x=>String(x.id)===b.dataset.reprint);if(s)printReceipt(s)})}
+function renderExpenses(){app.innerHTML='<section class="card"><h2>Record an expense</h2><form id="expenseForm" class="formgrid"><div><label>Description</label><input name="name" required placeholder="Supplies, rent, electricity"></div><div><label>Amount (₱)</label><input name="amount" type="number" min="0.01" step=".01" required></div><div><label>Date</label><input name="date" type="date" value="'+today()+'" required></div><div><label>Category</label><select name="category"><option>Supplies</option><option>Utilities</option><option>Rent</option><option>Payroll</option><option>Other</option></select></div><div class="wide"><button class="primary">Save expense</button></div></form></section><div class="spacer"></div><section class="card"><div class="row between"><h2>Expense history</h2><b>'+money(db.expenses.reduce((a,x)=>a+x.amount,0))+'</b></div><div class="tablewrap"><table><thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th><th></th></tr></thead><tbody>'+db.expenses.slice().reverse().map(x=>'<tr><td>'+esc(x.date)+'</td><td>'+esc(x.name)+'</td><td>'+esc(x.category)+'</td><td>'+money(x.amount)+'</td><td><button class="danger smallbtn" data-expense="'+x.id+'">Delete</button></td></tr>').join('')+'</tbody></table></div>'+(db.expenses.length?'':'<div class="empty">No expenses recorded.</div>')+'</section>';document.getElementById('expenseForm').onsubmit=e=>{e.preventDefault();let f=new FormData(e.target);db.expenses.push({id:Date.now(),name:String(f.get('name')).trim(),amount:Number(f.get('amount')),date:String(f.get('date')),category:String(f.get('category'))});save();renderExpenses();notify('Expense saved.')};app.querySelectorAll('[data-expense]').forEach(b=>b.onclick=()=>{if(confirm('Delete this expense?')){db.expenses=db.expenses.filter(x=>x.id!==+b.dataset.expense);save();renderExpenses()}})}
+function renderSettings(){app.innerHTML='<div class="two"><section class="card"><h2>Store settings</h2><form id="settingsForm"><label>Store name on receipt</label><input name="store" value="'+esc(db.store)+'" required><label>Admin PIN</label><input name="pin" inputmode="numeric" pattern="[0-9]{4,8}" value="'+esc(db.pin)+'" required><p class="muted">PIN is stored locally in this browser and is not secure authentication.</p><button class="primary">Save settings</button></form></section><section class="card"><h2>Backup & restore</h2><p class="muted">Export your sales, products, and expenses regularly. Data stays in this browser on this device.</p><button class="primary" id="backup">Download backup JSON</button><label>Restore from JSON backup</label><input id="restoreFile" type="file" accept=".json,application/json"><button class="secondary" id="restore" style="margin-top:10px">Restore backup</button><div class="spacer"></div><button class="danger" id="reset">Reset all app data</button></section></div><div class="spacer"></div><section class="card"><h3>Important limitations</h3><ul class="muted"><li>Data is stored in localStorage on this device/browser only.</li><li>Clearing browser data may erase sales and expenses; keep backups.</li><li>This is not a cloud-synced multi-device POS.</li><li>Ingredient-level recipe costing, staff payroll, and cashier PIN roles are not included in this basic working build.</li></ul></section>';document.getElementById('settingsForm').onsubmit=e=>{e.preventDefault();let f=new FormData(e.target);db.store=String(f.get('store')).trim();db.pin=String(f.get('pin'));save();notify('Settings saved.');renderSettings()};document.getElementById('backup').onclick=()=>download('itaewon-pos-backup.json',JSON.stringify(db,null,2),'application/json');document.getElementById('restore').onclick=()=>{let file=document.getElementById('restoreFile').files[0];if(!file)return notify('Choose a backup file first.');let reader=new FileReader();reader.onload=()=>{try{let x=JSON.parse(reader.result);if(!Array.isArray(x.products)||!Array.isArray(x.sales))throw Error('Invalid backup');if(confirm('Replace current data with this backup?')){db=Object.assign(seed,x);save();renderSettings();notify('Backup restored.')}}catch(e){notify('Invalid backup file.')}};reader.readAsText(file)};document.getElementById('reset').onclick=()=>{if(prompt('Type RESET to erase all local data.')==='RESET'){db=JSON.parse(JSON.stringify(seed));save();cart=[];renderSettings();notify('Local data reset.')}}}
+function download(name,text,type){let blob=new Blob([text],{type:type||'text/csv;charset=utf-8;'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();URL.revokeObjectURL(url)}
 render();
+})();
