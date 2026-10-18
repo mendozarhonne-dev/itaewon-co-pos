@@ -14,7 +14,7 @@ const seed={
  ],sales:[],expenses:[],loyaltyCustomers:[],loyaltyHistory:[],loyaltyTarget:5,loyaltyReward:'1 free drink',nextId:6,pin:'1234',store:'Itaewon & Co.',logo:'',paymentQR:''
 };
 let db=load(),page='pos',cart=[],lastReceipt=null;
-let cloudReady=false, cloudBusy=false, cloudListeners=[], cloudBase=null;
+let cloudReady=false, cloudBusy=false, cloudPending=false, cloudListeners=[], cloudBase=null;
 const OWNER_EMAIL='mendoza.rhonne@gmail.com';
 const ARRAY_KEYS=['employees','attendance','incentives','products','sales','expenses','loyaltyCustomers','loyaltyHistory'];
 const CONFIG_KEYS=['categories','loyaltyTarget','loyaltyReward','nextId','pin','store','logo','paymentQR','receiptHeader','receiptFooter'];
@@ -48,7 +48,8 @@ async function pullCloud(fs){
  cloudBase=JSON.parse(JSON.stringify(db));localSave();
 }
 async function pushCloud(){
- if(!cloudReady||cloudBusy||!firebase.auth().currentUser)return;
+ if(!cloudReady||!firebase.auth().currentUser)return;
+ if(cloudBusy){cloudPending=true;return}
  cloudBusy=true;cloudStatus('Syncing…');
  try{
   const fs=firebaseDb(),batch=fs.batch();
@@ -61,7 +62,7 @@ async function pushCloud(){
   }
   await batch.commit();cloudBase=JSON.parse(JSON.stringify(db));cloudStatus('Synced · '+new Date().toLocaleTimeString());
  }catch(e){console.error('Cloud sync failed',e);cloudStatus('Sync failed — check connection/rules');notify('Cloud sync failed. Check Firebase rules and internet.')}
- finally{cloudBusy=false}
+ finally{cloudBusy=false;if(cloudPending){cloudPending=false;pushCloud()}}
 }
 function startCloudListeners(fs){
  cloudListeners.forEach(unsub=>unsub());cloudListeners=[];
