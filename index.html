@@ -7,7 +7,7 @@
   <title>Itaewon &amp; Co. POS</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20261019-14">
+  <link rel="stylesheet" href="style.css?v=20261019-15">
 </head>
 <body>
   <aside class="sidebar">
@@ -21,25 +21,26 @@
       <button data-page="expenses">Expenses</button>
       <button data-page="loyalty">Loyalty Rewards</button>
       <button data-page="settings">Backup / Settings</button>
+      <button data-page="staff" hidden>Staff Access</button>
     </nav>
     <small class="foot">LOCAL POS SYSTEM · CAMARIN</small>
   </aside>
   <main>
-    <header><div><small>ITAEWON &amp; CO. / STORE MANAGEMENT</small><h1 id="title">POS / Checkout</h1><small id="cloudStatus">Connecting to shared POS…</small></div><div class="header-actions"><span id="date"></span><button id="signOut" class="secondary smallbtn" type="button">Sign out</button></div></header>
+    <header><div><small>ITAEWON &amp; CO. / STORE MANAGEMENT</small><h1 id="title">POS / Checkout</h1><small id="cloudStatus">Connecting to shared POS…</small><small id="roleBadge" style="display:inline-block;margin-top:6px;color:#c8ff38"></small></div><div class="header-actions"><span id="date"></span><button id="signOut" class="secondary smallbtn" type="button">Sign out</button></div></header>
     <div id="app"></div>
   </main>
   <div id="authGate" style="position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:#10110e;padding:20px">
     <form id="loginForm" style="width:min(100%,420px);background:#1a1c16;border:1px solid #383d2d;border-radius:18px;padding:26px;color:#f4f5ed">
       <div style="font-size:12px;letter-spacing:3px;color:#c8ff38;font-weight:700">ITAEWON &amp; CO.</div>
       <h1 style="margin:12px 0 6px">Cloud POS sign in</h1>
-      <p style="color:#b8bdad;font-size:13px;line-height:1.5">Sign in with your authorized owner account to access shared sales, inventory, and loyalty data.</p>
+      <p style="color:#b8bdad;font-size:13px;line-height:1.5">Sign in with your assigned Itaewon &amp; Co. account. Access depends on your staff role.</p>
       <label for="loginEmail" style="display:block;margin-top:16px">Email</label>
       <input id="loginEmail" type="email" autocomplete="username" required value="mendoza.rhonne@gmail.com" style="width:100%;margin-top:7px">
       <label for="loginPassword" style="display:block;margin-top:14px">Password</label>
       <input id="loginPassword" type="password" autocomplete="current-password" required style="width:100%;margin-top:7px">
       <button class="primary" type="submit" style="width:100%;margin-top:18px">Sign in</button>
       <p id="authError" role="status" style="color:#ff9b8f;font-size:12px;overflow-wrap:anywhere"></p>
-      <p id="cloudSetupHelp" style="color:#b8bdad;font-size:11px">If sign-in is rejected, check Firebase Authentication and Firestore security rules.</p>
+      <p id="cloudSetupHelp" style="color:#b8bdad;font-size:11px">If you do not have access yet, ask the owner to create your account and assign your role.</p>
     </form>
   </div>
   <div id="toast"></div>
@@ -59,6 +60,6 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-  <script src="app.js?v=20261019-14" onerror="document.getElementById('app').innerHTML='<section style=&quot;padding:20px;background:#301c19;border:1px solid #ff685d;border-radius:12px;color:#ffd8d4&quot;><h2>POS JavaScript failed to load</h2><p>The browser could not load app.js. Check the GitHub Pages deployment and refresh.</p></section>'"></script>
+  <script src="app.js?v=20261019-15" onerror="document.getElementById('app').innerHTML='<section style=&quot;padding:20px;background:#301c19;border:1px solid #ff685d;border-radius:12px;color:#ffd8d4&quot;><h2>POS JavaScript failed to load</h2><p>The browser could not load app.js. Check the GitHub Pages deployment and refresh.</p></section>'"></script>
 </body>
 </html>
