@@ -14,10 +14,89 @@ const seed={
  ],sales:[],expenses:[],loyaltyCustomers:[],loyaltyHistory:[],loyaltyTarget:5,loyaltyReward:'1 free drink',nextId:6,pin:'1234',store:'Itaewon & Co.',logo:'',paymentQR:''
 };
 let db=load(),page='pos',cart=[],lastReceipt=null;
+let cloudReady=false, cloudBusy=false, cloudListeners=[], cloudBase=null;
+const OWNER_EMAIL='mendoza.rhonne@gmail.com';
+const ARRAY_KEYS=['employees','attendance','incentives','products','sales','expenses','loyaltyCustomers','loyaltyHistory'];
+const CONFIG_KEYS=['categories','loyaltyTarget','loyaltyReward','nextId','pin','store','logo','paymentQR','receiptHeader','receiptFooter'];
+const cloudCollections={employees:'pos_employees',attendance:'pos_attendance',incentives:'pos_incentives',products:'pos_products',sales:'pos_sales',expenses:'pos_expenses',loyaltyCustomers:'pos_loyaltyCustomers',loyaltyHistory:'pos_loyaltyHistory'};
+function cloudRecordId(x){return String(x&&x.id!=null?x.id:(x&&x.name!=null?x.name:JSON.stringify(x))).replace(/[\\/#?\\[\\]]/g,'_').slice(0,140)}
+function cloudConfig(){const x={};CONFIG_KEYS.forEach(k=>{if(db[k]!==undefined)x[k]=db[k]});return x}
+function localSave(){localStorage.setItem(KEY,JSON.stringify(db));syncBrand()}
+function cloudStatus(text){const el=document.getElementById('cloudStatus');if(el)el.textContent=text}
+function showAuth(show){const gate=document.getElementById('authGate');if(gate)gate.style.display=show?'grid':'none';document.querySelectorAll('.sidebar,main').forEach(el=>el.style.visibility=show?'hidden':'visible')}
+function firebaseDb(){return firebase.firestore()}
+async function migrateLocalToCloud(fs){
+ const configRef=fs.collection('pos_config').doc('main');
+ const existing=await configRef.get();
+ if(existing.exists)return false;
+ const batch=fs.batch();
+ batch.set(configRef,cloudConfig());
+ for(const key of ARRAY_KEYS){for(const item of (db[key]||[])){batch.set(fs.collection(cloudCollections[key]).doc(cloudRecordId(item)),item)}}
+ await batch.commit();
+ cloudBase=JSON.parse(JSON.stringify(db));
+ return true;
+}
+async function pullCloud(fs){
+ const configSnap=await fs.collection('pos_config').doc('main').get();
+ if(!configSnap.exists){await migrateLocalToCloud(fs);return}
+ const cfg=configSnap.data()||{};
+ Object.keys(cfg).forEach(k=>db[k]=cfg[k]);
+ for(const key of ARRAY_KEYS){
+  const snap=await fs.collection(cloudCollections[key]).get();
+  db[key]=snap.docs.map(d=>d.data());
+ }
+ cloudBase=JSON.parse(JSON.stringify(db));localSave();
+}
+async function pushCloud(){
+ if(!cloudReady||cloudBusy||!firebase.auth().currentUser)return;
+ cloudBusy=true;cloudStatus('Syncing…');
+ try{
+  const fs=firebaseDb(),batch=fs.batch();
+  batch.set(fs.collection('pos_config').doc('main'),cloudConfig(),{merge:true});
+  for(const key of ARRAY_KEYS){
+   const before=new Map(((cloudBase&&cloudBase[key])||[]).map(x=>[cloudRecordId(x),x]));
+   const after=new Map((db[key]||[]).map(x=>[cloudRecordId(x),x]));
+   for(const [id,item] of after){if(!before.has(id)||JSON.stringify(before.get(id))!==JSON.stringify(item))batch.set(fs.collection(cloudCollections[key]).doc(id),item)}
+   for(const [id] of before){if(!after.has(id))batch.delete(fs.collection(cloudCollections[key]).doc(id))}
+  }
+  await batch.commit();cloudBase=JSON.parse(JSON.stringify(db));cloudStatus('Synced · '+new Date().toLocaleTimeString());
+ }catch(e){console.error('Cloud sync failed',e);cloudStatus('Sync failed — check connection/rules');notify('Cloud sync failed. Check Firebase rules and internet.')}
+ finally{cloudBusy=false}
+}
+function startCloudListeners(fs){
+ cloudListeners.forEach(unsub=>unsub());cloudListeners=[];
+ cloudListeners.push(fs.collection('pos_config').doc('main').onSnapshot(doc=>{
+  if(!doc.exists)return;const cfg=doc.data()||{};Object.keys(cfg).forEach(k=>db[k]=cfg[k]);
+  localSave();if(!cloudBusy){cloudBase=JSON.parse(JSON.stringify(db));if(page)render()}
+ },err=>{console.error(err);cloudStatus('Cloud read blocked — check Firestore rules')}));
+ for(const key of ARRAY_KEYS){
+  cloudListeners.push(fs.collection(cloudCollections[key]).onSnapshot(snap=>{
+   db[key]=snap.docs.map(d=>d.data());localSave();
+   if(!cloudBusy){cloudBase=JSON.parse(JSON.stringify(db));if(page)render()}
+  },err=>{console.error(err);cloudStatus('Cloud read blocked — check Firestore rules')}));
+ }
+}
+async function startCloudForUser(user){
+ if(!user||String(user.email||'').toLowerCase()!==OWNER_EMAIL){await firebase.auth().signOut();showAuth(true);cloudStatus('Sign in with the authorized owner email.');return}
+ try{
+  cloudReady=false;cloudStatus('Loading shared data…');
+  const fs=firebaseDb();
+  await pullCloud(fs);
+  cloudReady=true;showAuth(false);startCloudListeners(fs);render();
+  cloudStatus('Connected · '+user.email);
+ }catch(e){console.error('Firebase startup failed',e);showAuth(true);cloudStatus('Could not connect. Check Firestore rules and setup.');const err=document.getElementById('authError');if(err)err.textContent='Could not load shared data: '+(e.message||e.code||'check Firebase setup')}
+}
+function initCloudAuth(){
+ if(!window.firebase){showAuth(true);const e=document.getElementById('authError');if(e)e.textContent='Firebase SDK failed to load. Refresh and check internet.';return}
+ if(!firebase.apps.length)firebase.initializeApp({apiKey:'AIzaSyD5nSZL-dOKWRqC7DssYH2g8lF7nuo2wnM',authDomain:'itaewon-co-pos.firebaseapp.com',projectId:'itaewon-co-pos',storageBucket:'itaewon-co-pos.firebasestorage.app',messagingSenderId:'1019984948238',appId:'1:1019984948238:web:267fd5f02e5822c89a205f',measurementId:'G-S6GT2KV1N2'});
+ document.getElementById('loginForm').onsubmit=async e=>{e.preventDefault();const email=document.getElementById('loginEmail').value.trim(),password=document.getElementById('loginPassword').value;const err=document.getElementById('authError');err.textContent='Signing in…';try{await firebase.auth().signInWithEmailAndPassword(email,password)}catch(ex){err.textContent=ex.message||'Sign-in failed.'}};
+ const out=document.getElementById('signOut');if(out)out.onclick=()=>firebase.auth().signOut();
+ firebase.auth().onAuthStateChanged(user=>{if(user)startCloudForUser(user);else{cloudReady=false;showAuth(true);cloudStatus('Sign in to sync POS data.')}});
+}
 const app=document.getElementById('app'),title=document.getElementById('title'),toastBox=document.getElementById('toast');
 document.getElementById('date').textContent=new Date().toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric',year:'numeric'});
 function load(){try{const x=JSON.parse(localStorage.getItem(KEY));if(x&&Array.isArray(x.products)&&Array.isArray(x.sales))return Object.assign(seed,x)}catch(e){}return JSON.parse(JSON.stringify(seed))}
-function save(){localStorage.setItem(KEY,JSON.stringify(db));syncBrand()}
+function save(){localSave();pushCloud()}
 function syncBrand(){const brand=document.querySelector('.brand>span');if(!brand)return;if(db.logo){brand.innerHTML='<img src=\"'+db.logo+'\" alt=\"Shop logo\">';brand.classList.add('has-logo')}else{brand.textContent='&';brand.classList.remove('has-logo')}document.title=(db.store||'Itaewon & Co.')+' POS';}
 function imageData(file,maxSize=700){return new Promise((resolve,reject)=>{if(!file||!file.type.startsWith('image/'))return reject(Error('Choose an image file.'));const reader=new FileReader();reader.onerror=()=>reject(Error('Could not read image.'));reader.onload=()=>{const img=new Image();img.onerror=()=>reject(Error('Invalid image file.'));img.onload=()=>{const scale=Math.min(1,maxSize/Math.max(img.width,img.height)),canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(img.width*scale));canvas.height=Math.max(1,Math.round(img.height*scale));canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);resolve(canvas.toDataURL('image/jpeg',.78))};img.src=reader.result};reader.readAsDataURL(file)})}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
@@ -84,4 +163,5 @@ function renderExpenses(){app.innerHTML='<section class="card"><h2>Record an exp
 function renderSettings(){app.innerHTML='<div class="two"><section class="card"><h2>Store settings</h2><form id="settingsForm"><label>Store name on receipt</label><input name="store" value="'+esc(db.store)+'" required><label>Shop logo / icon</label><input id="shopLogoFile" type="file" accept="image/*"><div class="image-preview">'+(db.logo?'<img src="'+db.logo+'" alt="Current shop logo">':'<span class="muted">No logo uploaded</span>')+'</div><label>Receipt header / note (optional)</label><input name="receiptHeader" value="'+esc(db.receiptHeader||'')+'" placeholder="e.g. Korean-inspired café"><label>Receipt footer message</label><input name="receiptFooter" value="'+esc(db.receiptFooter||'Thank you! See you again.')+'" placeholder="Thank you!"><label>GCash payment QR</label><input id="paymentQRFile" type="file" accept="image/*"><div class="image-preview">'+(db.paymentQR?'<img src="'+db.paymentQR+'" alt="Current payment QR">':'<span class="muted">No payment QR uploaded</span>')+'</div><p class="muted">Images are compressed and saved in this browser. They do not sync to other devices.</p><label>Admin PIN</label><input name="pin" inputmode="numeric" pattern="[0-9]{4,8}" value="'+esc(db.pin)+'" required><p class="muted">PIN is stored locally in this browser and is not secure authentication.</p><button class="primary">Save settings</button></form></section><section class="card"><h2>Backup & restore</h2><p class="muted">Export your sales, products, and expenses regularly. Data stays in this browser on this device.</p><button class="primary" id="backup">Download backup JSON</button><label>Restore from JSON backup</label><input id="restoreFile" type="file" accept=".json,application/json"><button class="secondary" id="restore" style="margin-top:10px">Restore backup</button><div class="spacer"></div><button class="danger" id="reset">Reset all app data</button></section></div><div class="spacer"></div><section class="card"><h3>Important limitations</h3><ul class="muted"><li>Data is stored in localStorage on this device/browser only.</li><li>Clearing browser data may erase sales and expenses; keep backups.</li><li>This is not a cloud-synced multi-device POS.</li><li>Ingredient-level recipe costing, staff payroll, and cashier PIN roles are not included in this basic working build.</li></ul></section>';document.getElementById('settingsForm').onsubmit=e=>{e.preventDefault();let f=new FormData(e.target);db.store=String(f.get('store')).trim();db.pin=String(f.get('pin'));db.receiptHeader=String(f.get('receiptHeader')||'').trim();db.receiptFooter=String(f.get('receiptFooter')||'Thank you! See you again.').trim();const logoFile=document.getElementById('shopLogoFile').files[0],qrFile=document.getElementById('paymentQRFile').files[0];Promise.all([logoFile&&logoFile.size?imageData(logoFile,500):Promise.resolve(db.logo||''),qrFile&&qrFile.size?imageData(qrFile,900):Promise.resolve(db.paymentQR||'')]).then(([logo,qr])=>{db.logo=logo;db.paymentQR=qr;save();notify('Settings and images saved.');renderSettings()}).catch(err=>notify(err.message||'Could not save images.'))};document.getElementById('backup').onclick=()=>download('itaewon-pos-backup.json',JSON.stringify(db,null,2),'application/json');document.getElementById('restore').onclick=()=>{let file=document.getElementById('restoreFile').files[0];if(!file)return notify('Choose a backup file first.');let reader=new FileReader();reader.onload=()=>{try{let x=JSON.parse(reader.result);if(!Array.isArray(x.products)||!Array.isArray(x.sales))throw Error('Invalid backup');if(confirm('Replace current data with this backup?')){db=Object.assign(seed,x);save();renderSettings();notify('Backup restored.')}}catch(e){notify('Invalid backup file.')}};reader.readAsText(file)};document.getElementById('reset').onclick=()=>{if(prompt('Type RESET to erase all local data.')==='RESET'){db=JSON.parse(JSON.stringify(seed));save();cart=[];renderSettings();notify('Local data reset.')}}}
 function download(name,text,type){let blob=new Blob([text],{type:type||'text/csv;charset=utf-8;'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();URL.revokeObjectURL(url)}
 render();
+initCloudAuth();
 })();
