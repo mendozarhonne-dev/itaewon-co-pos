@@ -95,7 +95,7 @@ async function processLoyaltySignupRequests(fs,snapshot){
    const name=String(req.name||'').trim();
    const contact=String(req.contact||'').trim();
    const phoneE164=normalizeLoyaltyPhone(contact);
-   if(!email||!name||!phoneE164){await doc.ref.update({processed:true,processStatus:'invalid-details',processedAt:new Date().toISOString()});continue}
+   if(!email||!name){await doc.ref.update({processed:true,processStatus:'invalid-details',processedAt:new Date().toISOString()});continue}
    let member=(db.loyaltyCustomers||[]).find(c=>String(c.accountEmail||'').trim().toLowerCase()===email);
    if(!member){
     const phoneMember=(db.loyaltyCustomers||[]).find(c=>normalizeLoyaltyPhone(c.phoneE164||c.contact)===phoneE164);
