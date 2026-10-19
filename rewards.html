@@ -36,6 +36,7 @@
     <input id="password" type="password" autocomplete="current-password" placeholder="Your password">
     <button id="signIn" class="primary">Log in</button>
     <button id="createAccount" class="primary hidden">Create my account</button>
+    <button id="googleSignIn" class="secondary" style="width:100%;margin-top:10px">Continue with Google</button>
     <button id="resetPassword" class="text-button">Forgot password?</button>
     <button id="sendVerify" class="text-button">Resend verification email</button>
     <div id="status" class="status" role="status" aria-live="polite"></div>
@@ -57,6 +58,7 @@
     </div>
     <p class="muted">Your card updates after staff records a qualifying purchase or redeems a reward. To claim a reward, show this screen to the cashier.</p>
     <button id="refreshCard" class="secondary" style="width:100%">Refresh my card</button>
+    <button id="linkGoogle" class="secondary" style="width:100%;margin-top:9px">Link this account to Google</button>
     <button id="signOut" class="secondary" style="width:100%;margin-top:9px">Sign out</button>
     <div id="cardStatus" class="status" role="status"></div>
   </section>
@@ -71,19 +73,9 @@
 const config={apiKey:'AIzaSyD5nSZL-dOKWRqC7DssYH2g8lF7nuo2wnM',authDomain:'itaewon-co-pos.firebaseapp.com',projectId:'itaewon-co-pos',storageBucket:'itaewon-co-pos.firebasestorage.app',messagingSenderId:'1019984948238',appId:'1:1019984948238:web:267fd5f02e5822c89a205f',measurementId:'G-S6GT2KV1N2'};
 const $=id=>document.getElementById(id),authError=$('status'),cardStatus=$('cardStatus');
 let authMode='login';
-let authCooldownUntil=0;
 function authRateLimited(e){
- if(e&&e.code==='auth/too-many-requests'){
-  authCooldownUntil=Date.now()+60000;
-  return 'Firebase temporarily blocked authentication requests from this device. Stop trying for now and wait a few hours before retrying. This is Firebase security protection and cannot be disabled from this page.';
- }
+ if(e&&e.code==='auth/too-many-requests') return 'Firebase temporarily limited sign-in attempts for security. This is not a device ban or an app-added limit. Please wait before retrying, or use Google sign-in if you have linked your account.';
  return '';
-}
-function authCooldownActive(){
- if(Date.now()>=authCooldownUntil)return false;
- const seconds=Math.ceil((authCooldownUntil-Date.now())/1000);
- status(authError,'Please wait '+seconds+' seconds before another authentication request.',true);
- return true;
 }
 function setAuthMode(mode){
  authMode=mode;
@@ -109,9 +101,48 @@ if(!firebase.apps.length)firebase.initializeApp(config);
 const auth=firebase.auth(),db=firebase.firestore();
 setAuthMode('login');
 function credentials(){return {email:$('email').value.trim().toLowerCase(),password:$('password').value}}
+const googleProvider=new firebase.auth.GoogleAuthProvider();
+googleProvider.setCustomParameters({prompt:'select_account'});
+$('googleSignIn').onclick=async()=>{
+ $('googleSignIn').disabled=true;status(authError,'Opening Google sign-in…',false);
+ try{
+  const result=await auth.signInWithPopup(googleProvider);
+  const user=result.user;
+  if(!user)throw Error('Google sign-in did not return an account. Please try again.');
+  status(authError,'Signed in with Google. Loading your loyalty card…',false);
+  await loadCard();
+ }catch(e){
+  console.error(e);
+  const limited=authRateLimited(e);
+  let msg=limited||(e.code==='auth/popup-blocked'?'Your browser blocked the Google sign-in window. Allow pop-ups for this site and try again.':
+    e.code==='auth/popup-closed-by-user'?'Google sign-in was cancelled. You can try again any time.':
+    e.code==='auth/account-exists-with-different-credential'?'This email already has an account using email and password. Sign in with that method first, then use “Link this account to Google” on your loyalty card.':
+    e.code==='auth/unauthorized-domain'?'Google sign-in is not enabled for this website domain yet. The Firebase project owner must add this domain under Authentication → Settings → Authorized domains.':
+    (e.message||'Could not sign in with Google.'));
+  status(authError,msg,true);
+ }finally{$('googleSignIn').disabled=false}
+};
+$('linkGoogle').onclick=async()=>{
+ const user=auth.currentUser;
+ if(!user)return status(cardStatus,'Sign in to your existing loyalty account first, then link Google.',true);
+ $('linkGoogle').disabled=true;status(cardStatus,'Linking Google to your current account…',false);
+ try{
+  const result=await user.linkWithPopup(googleProvider);
+  if(String(result.user.email||'').toLowerCase()!==String(user.email||'').toLowerCase())throw Error('The Google account email must match the email already registered to this loyalty account.');
+  status(cardStatus,'Google is now linked to this loyalty account. You can use Google to sign in on your other devices.',false);
+ }catch(e){
+  console.error(e);
+  const msg=e.code==='auth/credential-already-in-use'?'That Google account is already linked to another account. Sign in using the account it is linked to, or ask staff for help.':
+    e.code==='auth/provider-already-linked'?'Google is already linked to this account.':
+    e.code==='auth/popup-blocked'?'Your browser blocked the Google sign-in window. Allow pop-ups for this site and try again.':
+    e.code==='auth/unauthorized-domain'?'Google sign-in is not enabled for this website domain yet. The Firebase project owner must add this domain under Authentication → Settings → Authorized domains.':
+    (e.message||'Could not link Google to this account.');
+  status(cardStatus,msg,true);
+ }finally{$('linkGoogle').disabled=false}
+};
 $('createAccount').onclick=async()=>{
  const c=credentials();if(!c.email||c.password.length<6)return status(authError,'Enter your email and a password with at least 6 characters.',true);
- if(authCooldownActive())return; $('createAccount').disabled=true;status(authError,'Creating account…',false);
+ $('createAccount').disabled=true;status(authError,'Creating account…',false);
  try{
    const name=$('customerNameInput').value.trim(),contact=$('customerPhoneInput').value.trim();
    if(!name||!contact)return status(authError,'Enter your full name and mobile number to create your loyalty account.',true);
@@ -127,14 +158,14 @@ $('createAccount').onclick=async()=>{
  finally{$('createAccount').disabled=false}
 };
 $('resetPassword').onclick=async()=>{
- if(authCooldownActive())return; const email=$('email').value.trim().toLowerCase();if(!email)return status(authError,'Enter your email address first, then click reset password.',true);
+ const email=$('email').value.trim().toLowerCase();if(!email)return status(authError,'Enter your email address first, then click reset password.',true);
  $('resetPassword').disabled=true;status(authError,'Sending password reset email…',false);
  try{await auth.sendPasswordResetEmail(email);status(authError,'Password reset email sent. Check your inbox and spam folder, then follow the link to choose a new password.',false)}
  catch(e){console.error(e);const limited=authRateLimited(e);status(authError,limited||(e.code==='auth/user-not-found'?'No account was found for that email. Check the address or create an account.':(e.message||'Could not send password reset email.')),true)}
  finally{$('resetPassword').disabled=false}
 };
 $('signIn').onclick=async()=>{
- if(authCooldownActive())return; const c=credentials();if(!c.email||!c.password)return status(authError,'Enter your email and password.',true);
+ const c=credentials();if(!c.email||!c.password)return status(authError,'Enter your email and password.',true);
  $('signIn').disabled=true;status(authError,'Signing in…',false);
  try{
    await withTimeout(auth.signInWithEmailAndPassword(c.email,c.password),15000,'Sign-in is taking too long. Check your internet connection and try again.');
