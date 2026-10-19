@@ -13,7 +13,7 @@
 <body>
 <div class="wrap">
   <div class="brand"><span>&amp;</span> ITAEWON &amp; CO.</div>
-  <header class="hero"><h1>Your Coffee Club.</h1><p class="muted">Check your stamps and rewards securely with the mobile number registered to your loyalty card.</p></header>
+  <header class="hero"><h1>Your Coffee Club.</h1><p class="muted">Sign in with your email or Google account to check your stamps and rewards.</p></header>
   <section class="panel" id="loginPanel">
     <h2 style="margin:0;color:#173f35">Welcome to your Coffee Club</h2>
     <p class="muted" style="margin-bottom:18px">Sign in to check your stamps, or create a new account if this is your first visit.</p>
@@ -21,14 +21,10 @@
       <button type="button" id="loginTab" class="auth-tab active" role="tab" aria-selected="true">Log in</button>
       <button type="button" id="signupTab" class="auth-tab" role="tab" aria-selected="false">Create account</button>
     </div>
-    <div id="signupIntro" class="muted hidden">New to Itaewon &amp; Co.? Enter your name, mobile number, and email to create your rewards account.</div>
+    <div id="signupIntro" class="muted hidden">New to Itaewon &amp; Co.? Enter your name and email to create your rewards account.</div>
     <div id="nameField" class="hidden">
       <label for="customerNameInput">Full name</label>
       <input id="customerNameInput" type="text" autocomplete="name" placeholder="Your full name">
-    </div>
-    <div id="phoneField" class="hidden">
-      <label for="customerPhoneInput">Mobile number</label>
-      <input id="customerPhoneInput" type="tel" autocomplete="tel" placeholder="09xx xxx xxxx">
     </div>
     <label for="email">Email address</label>
     <input id="email" type="email" autocomplete="email" placeholder="you@example.com">
@@ -82,7 +78,7 @@ function setAuthMode(mode){
  const signup=mode==='signup';
  $('loginTab').classList.toggle('active',!signup);$('signupTab').classList.toggle('active',signup);
  $('loginTab').setAttribute('aria-selected',String(!signup));$('signupTab').setAttribute('aria-selected',String(signup));
- $('nameField').classList.toggle('hidden',!signup);$('phoneField').classList.toggle('hidden',!signup);$('signupIntro').classList.toggle('hidden',!signup);
+ $('nameField').classList.toggle('hidden',!signup);$('signupIntro').classList.toggle('hidden',!signup);
  $('signIn').classList.toggle('hidden',signup);$('createAccount').classList.toggle('hidden',!signup);
  $('resetPassword').classList.toggle('hidden',signup);$('sendVerify').classList.toggle('hidden',signup);
  $('password').autocomplete=signup?'new-password':'current-password';
@@ -144,12 +140,11 @@ $('createAccount').onclick=async()=>{
  const c=credentials();if(!c.email||c.password.length<6)return status(authError,'Enter your email and a password with at least 6 characters.',true);
  $('createAccount').disabled=true;status(authError,'Creating account…',false);
  try{
-   const name=$('customerNameInput').value.trim(),contact=$('customerPhoneInput').value.trim();
-   if(!name||!contact)return status(authError,'Enter your full name and mobile number to create your loyalty account.',true);
-   const phone=contact.replace(/[\s().-]/g,'');if(!/^(09\d{9}|\+639\d{9}|639\d{9}|9\d{9})$/.test(phone))return status(authError,'Enter a valid Philippine mobile number, e.g. 09171234567.',true);
+   const name=$('customerNameInput').value.trim();
+   if(!name)return status(authError,'Enter your full name to create your loyalty account.',true);
+   
    const result=await auth.createUserWithEmailAndPassword(c.email,c.password);
    await result.user.updateProfile({displayName:name});
-   localStorage.setItem('itaewon_signup_phone_'+result.user.uid,contact);
    await result.user.sendEmailVerification();
    status(authError,'Account created! Open the verification email, then return here and sign in with the same email and password. Your loyalty card request will be sent after verification.',false);
    await auth.signOut();
@@ -189,14 +184,13 @@ async function loadCard(){
    const snap=await withTimeout(db.collection('public_loyalty_cards').where('accountEmail','==',email).limit(2).get(),12000,'Signed in, but searching for your card timed out. Check your connection or ask staff to check the card email.');
    if(snap.size>1)throw Error('More than one card is linked to this email. Please ask staff to help.');
    if(snap.empty){
-    let name=String(user.displayName||'').trim(),contact=localStorage.getItem('itaewon_signup_phone_'+user.uid)||'';
+    let name=String(user.displayName||'').trim();
     if(!name)name=String(prompt('Enter your full name for your loyalty card:')||'').trim();
-    if(!contact)contact=String(prompt('Enter your Philippine mobile number (e.g. 09171234567):')||'').trim();
-    if(!name||!contact)throw Error('Your account is verified, but we still need your name and mobile number to request a loyalty card.');
+    if(!name)throw Error('Your account is verified, but we still need your name to request a loyalty card.');
     const requestRef=db.collection('loyalty_signup_requests').doc(user.uid);
     const requestSnap=await withTimeout(requestRef.get(),10000,'Could not check your signup request. Please try again.');
     if(!requestSnap.exists){
-      await withTimeout(requestRef.set({uid:user.uid,email,name,contact,processed:false,createdAt:new Date().toISOString()}),12000,'Could not submit your loyalty card request. Please try again or contact staff.');
+      await withTimeout(requestRef.set({uid:user.uid,email,name,contact:'',processed:false,createdAt:new Date().toISOString()}),12000,'Could not submit your loyalty card request. Please try again or contact staff.');
     }
     throw Error('Your account is verified and your loyalty card request has been sent. The POS will create your card automatically when it is connected. Return here and tap “Refresh my card” in a moment, or sign in again later.');
    }
