@@ -14,7 +14,7 @@ const seed={
  ],sales:[],expenses:[],loyaltyCustomers:[],loyaltyHistory:[],loyaltyTarget:5,loyaltyReward:'1 free drink',nextId:6,pin:'1234',store:'Itaewon & Co.',logo:'',paymentQR:''
 };
 let db=load(),page='pos',cart=[],lastReceipt=null;
-let cloudReady=false, cloudBusy=false, cloudPending=false, cloudListeners=[], cloudBase=null, currentRole='', forcePublicLoyaltySync=false;
+let cloudReady=false, cloudBusy=false, cloudPending=false, cloudListeners=[], cloudBase=null, currentRole='', forcePublicLoyaltySync=false, processingSignupRequests=false;
 const OWNER_EMAILS=['mendoza.rhonne@gmail.com','mendozarhonne@gmail.com'];
 const ROLE_PAGES={cashier:['pos'],manager:['pos','products','inventory','employees','sales','expenses','loyalty'],owner:['pos','products','inventory','employees','sales','expenses','loyalty','settings','staff']};
 function isOwner(){return OWNER_EMAILS.includes(String(firebase.auth().currentUser&&firebase.auth().currentUser.email||'').toLowerCase())}
@@ -84,7 +84,37 @@ async function pushCloud(){
  }catch(e){console.error('Cloud sync failed',e);cloudStatus('Sync failed — check connection/rules');notify('Cloud sync failed. Check Firebase rules and internet.')}
  finally{cloudBusy=false;if(cloudPending){cloudPending=false;pushCloud()}}
 }
+async function processLoyaltySignupRequests(fs,snapshot){
+ if(processingSignupRequests||!['owner','manager'].includes(currentRole))return;
+ processingSignupRequests=true;
+ try{
+  for(const doc of snapshot.docs){
+   const req=doc.data()||{};
+   if(req.processed===true)continue;
+   const email=String(req.email||'').trim().toLowerCase();
+   const name=String(req.name||'').trim();
+   const contact=String(req.contact||'').trim();
+   const phoneE164=normalizeLoyaltyPhone(contact);
+   if(!email||!name||!phoneE164){await doc.ref.update({processed:true,processStatus:'invalid-details',processedAt:new Date().toISOString()});continue}
+   let member=(db.loyaltyCustomers||[]).find(c=>String(c.accountEmail||'').trim().toLowerCase()===email);
+   if(!member){
+    const phoneMember=(db.loyaltyCustomers||[]).find(c=>normalizeLoyaltyPhone(c.phoneE164||c.contact)===phoneE164);
+    if(phoneMember){await doc.ref.update({processed:true,processStatus:'phone-already-linked',processedAt:new Date().toISOString()});continue}
+    const id='IC'+Date.now().toString(36).toUpperCase()+Math.random().toString(36).slice(2,6).toUpperCase();
+    member={id,name,contact,phoneE164,accountEmail:email,gender:'neutral',avatar:createLoyaltyAvatar('neutral',id),qrToken:'ITAEWON-CUST-'+id,stamps:0,visits:0,totalSpent:0,createdAt:new Date().toISOString(),signupSource:'website'};
+    db.loyaltyCustomers.push(member);
+    save();
+   }
+   await doc.ref.update({processed:true,processStatus:'created',cardId:String(member.id),processedAt:new Date().toISOString()});
+  }
+ }catch(e){console.error('Could not process customer signup requests',e);cloudStatus('Customer signup sync failed — check Firestore rules')}
+ finally{processingSignupRequests=false}
+}
 function startCloudListeners(fs){
+ if(['owner','manager'].includes(currentRole)){
+  cloudListeners.push(fs.collection('loyalty_signup_requests').onSnapshot(snap=>{processLoyaltySignupRequests(fs,snap)},err=>{console.error(err);cloudStatus('Customer signup requests blocked — check Firestore rules')}));
+ }
+
  cloudListeners.forEach(unsub=>unsub());cloudListeners=[];
  cloudListeners.push(fs.collection('pos_config').doc('main').onSnapshot(doc=>{
   if(!doc.exists)return;const cfg=doc.data()||{};Object.keys(cfg).forEach(k=>db[k]=cfg[k]);
