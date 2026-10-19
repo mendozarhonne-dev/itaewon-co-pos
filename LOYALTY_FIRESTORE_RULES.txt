@@ -1,0 +1,40 @@
+ITAWEON & CO. CUSTOMER LOYALTY PORTAL — FIRESTORE RULES ADD-ON
+
+IMPORTANT:
+1. Open Firebase Console → itaewon-co-pos → Firestore Database → Rules.
+2. Do NOT replace your existing rules with this file. Merge the helper function and match block below into the existing rules. Keep your current staff rules intact.
+3. Confirm your existing rules do NOT grant broad read/write access to every signed-in user. Phone-auth customers are signed-in users too.
+4. Publish the merged rules, then test with a customer phone number and a staff POS account.
+
+Add this helper inside your existing service cloud.firestore block, alongside your other helper functions:
+
+function isItaewonPosStaff() {
+  return request.auth != null && (
+    request.auth.token.email == 'mendoza.rhonne@gmail.com' ||
+    (
+      request.auth.token.email is string &&
+      exists(/databases/$(database)/documents/pos_users/$(request.auth.token.email)) &&
+      get(/databases/$(database)/documents/pos_users/$(request.auth.token.email)).data.active == true &&
+      get(/databases/$(database)/documents/pos_users/$(request.auth.token.email)).data.role in ['cashier', 'manager']
+    )
+  );
+}
+
+Add this match block inside the existing:
+match /databases/{database}/documents {
+
+  match /public_loyalty_cards/{customerId} {
+    // Customers can read only a card whose verified Firebase phone number matches.
+    // Phone-number lookup queries must filter phoneE164 == request.auth.token.phone_number.
+    allow get, list: if request.auth != null
+      && request.auth.token.phone_number is string
+      && resource.data.phoneE164 == request.auth.token.phone_number;
+
+    // Staff POS accounts maintain the safe customer-facing card summary.
+    allow create, update, delete: if isItaewonPosStaff();
+  }
+
+Security notes:
+- The portal only reads public_loyalty_cards, not the private POS config, sales, or employee collections.
+- These rules protect the new collection only. Review existing rules separately to ensure they don't accidentally grant phone-auth customers access to private POS collections.
+- Do not add public read access to pos_loyaltyCustomers or pos_config.
