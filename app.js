@@ -60,7 +60,7 @@ async function pushCloud(){
  if(cloudBusy){cloudPending=true;return}
  cloudBusy=true;cloudStatus('Syncing…');
  try{
-  const fs=firebaseDb(),batch=fs.batch();
+  const fs=firebaseDb(),batch=fs.batch(),publicBatch=fs.batch();let hasPublicChanges=false;
   if(currentRole==='owner')batch.set(fs.collection('pos_config').doc('main'),cloudConfig(),{merge:true});
   for(const key of ARRAY_KEYS){
    if(!canWriteKey(key))continue;
@@ -75,12 +75,13 @@ async function pushCloud(){
    const rewardChanged=!cloudBase||Number(cloudBase.loyaltyTarget||5)!==Number(db.loyaltyTarget||5)||String(cloudBase.loyaltyReward||'')!==String(db.loyaltyReward||'');
    for(const [id,member] of afterMembers){
     if(rewardChanged||!beforeMembers.has(id)||JSON.stringify(beforeMembers.get(id))!==JSON.stringify(member)){
-     batch.set(fs.collection('public_loyalty_cards').doc(id),{id:String(member.id),name:String(member.name||'Customer'),phoneE164:String(member.phoneE164||''),stamps:Math.max(0,Number(member.stamps||0)),visits:Math.max(0,Number(member.visits||0)),target:Math.max(1,Number(db.loyaltyTarget||5)),rewardName:String(db.loyaltyReward||'Reward'),updatedAt:new Date().toISOString()});
+     publicBatch.set(fs.collection('public_loyalty_cards').doc(id),{id:String(member.id),name:String(member.name||'Customer'),phoneE164:String(member.phoneE164||''),stamps:Math.max(0,Number(member.stamps||0)),visits:Math.max(0,Number(member.visits||0)),target:Math.max(1,Number(db.loyaltyTarget||5)),rewardName:String(db.loyaltyReward||'Reward'),updatedAt:new Date().toISOString()});
     }
    }
-   for(const [id] of beforeMembers){if(!afterMembers.has(id))batch.delete(fs.collection('public_loyalty_cards').doc(id))}
+   for(const [id] of beforeMembers){if(!afterMembers.has(id)){publicBatch.delete(fs.collection('public_loyalty_cards').doc(id));hasPublicChanges=true}}
+   if(afterMembers.size)hasPublicChanges=true
   }
-  await batch.commit();cloudBase=JSON.parse(JSON.stringify(db));cloudStatus('Synced · '+new Date().toLocaleTimeString());
+  await batch.commit();if(hasPublicChanges)await publicBatch.commit();cloudBase=JSON.parse(JSON.stringify(db));cloudStatus('Synced · '+new Date().toLocaleTimeString());
  }catch(e){console.error('Cloud sync failed',e);cloudStatus('Sync failed — check connection/rules');notify('Cloud sync failed. Check Firebase rules and internet.')}
  finally{cloudBusy=false;if(cloudPending){cloudPending=false;pushCloud()}}
 }
