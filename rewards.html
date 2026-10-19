@@ -22,6 +22,7 @@
     <label for="password">Password</label>
     <input id="password" type="password" autocomplete="current-password" placeholder="At least 6 characters">
     <button id="signIn" class="primary">Sign in</button>
+    <button id="resetPassword" class="secondary" style="width:100%;margin-top:9px">Forgot password? Reset it</button>
     <button id="createAccount" class="secondary" style="width:100%;margin-top:9px">Create customer account</button>
     <button id="sendVerify" class="secondary" style="width:100%;margin-top:9px">Resend verification email</button>
     <div id="status" class="status" role="status" aria-live="polite"></div>
@@ -69,6 +70,13 @@ $('createAccount').onclick=async()=>{
  try{const result=await auth.createUserWithEmailAndPassword(c.email,c.password);await result.user.sendEmailVerification();status(authError,'Account created. Open the verification email we sent, then return here and sign in.',false);await auth.signOut()}
  catch(e){console.error(e);status(authError,e.code==='auth/email-already-in-use'?'That email already has an account. Sign in instead.':(e.message||'Could not create account.'),true)}
  finally{$('createAccount').disabled=false}
+};
+$('resetPassword').onclick=async()=>{
+ const email=$('email').value.trim().toLowerCase();if(!email)return status(authError,'Enter your email address first, then click reset password.',true);
+ $('resetPassword').disabled=true;status(authError,'Sending password reset email…',false);
+ try{await auth.sendPasswordResetEmail(email);status(authError,'Password reset email sent. Check your inbox and spam folder, then follow the link to choose a new password.',false)}
+ catch(e){console.error(e);status(authError,e.code==='auth/user-not-found'?'No account was found for that email. Check the address or create an account.':(e.message||'Could not send password reset email.'),true)}
+ finally{$('resetPassword').disabled=false}
 };
 $('signIn').onclick=async()=>{
  const c=credentials();if(!c.email||!c.password)return status(authError,'Enter your email and password.',true);
