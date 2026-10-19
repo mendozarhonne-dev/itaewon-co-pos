@@ -101,7 +101,7 @@ $('createAccount').onclick=async()=>{
  try{
    const name=$('customerNameInput').value.trim(),contact=$('customerPhoneInput').value.trim();
    if(!name||!contact)return status(authError,'Enter your full name and mobile number to create your loyalty account.',true);
-   const phone=contact.replace(/[\\s().-]/g,'');if(!/^(09\\d{9}|\\+639\\d{9}|639\\d{9}|9\\d{9})$/.test(phone))return status(authError,'Enter a valid Philippine mobile number, e.g. 09171234567.',true);
+   const phone=contact.replace(/[\s().-]/g,'');if(!/^(09\d{9}|\+639\d{9}|639\d{9}|9\d{9})$/.test(phone))return status(authError,'Enter a valid Philippine mobile number, e.g. 09171234567.',true);
    const result=await auth.createUserWithEmailAndPassword(c.email,c.password);
    await result.user.updateProfile({displayName:name});
    localStorage.setItem('itaewon_signup_phone_'+result.user.uid,contact);
