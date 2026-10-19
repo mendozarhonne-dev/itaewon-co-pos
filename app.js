@@ -15,9 +15,9 @@ const seed={
 };
 let db=load(),page='pos',cart=[],lastReceipt=null;
 let cloudReady=false, cloudBusy=false, cloudPending=false, cloudListeners=[], cloudBase=null, currentRole='', forcePublicLoyaltySync=false;
-const OWNER_EMAIL='mendoza.rhonne@gmail.com';
+const OWNER_EMAILS=['mendoza.rhonne@gmail.com','mendozarhonne@gmail.com'];
 const ROLE_PAGES={cashier:['pos'],manager:['pos','products','inventory','employees','sales','expenses','loyalty'],owner:['pos','products','inventory','employees','sales','expenses','loyalty','settings','staff']};
-function isOwner(){return String(firebase.auth().currentUser&&firebase.auth().currentUser.email||'').toLowerCase()===OWNER_EMAIL}
+function isOwner(){return OWNER_EMAILS.includes(String(firebase.auth().currentUser&&firebase.auth().currentUser.email||'').toLowerCase())}
 function canOpen(p){return (ROLE_PAGES[currentRole]||[]).includes(p)}
 function canReadKey(k){return currentRole==='owner'||currentRole==='manager'||['employees','products','sales','loyaltyCustomers','loyaltyHistory'].includes(k)}
 function canWriteKey(k){return currentRole==='owner'||currentRole==='manager'||(currentRole==='cashier'&&['sales','loyaltyCustomers','loyaltyHistory'].includes(k))}
@@ -103,7 +103,7 @@ async function startCloudForUser(user){
  try{
   cloudReady=false;currentRole='';cloudStatus('Checking account permissions…');
   const fs=firebaseDb(),email=String(user.email||'').toLowerCase();
-  if(email===OWNER_EMAIL)currentRole='owner';
+  if(OWNER_EMAILS.includes(email))currentRole='owner';
   else {
    const access=await fs.collection('pos_users').doc(email).get();
    const record=access.exists?access.data():null;
@@ -233,7 +233,7 @@ function renderStaffAccess(){
  app.innerHTML='<section class="card"><h2>Staff access</h2><p class="muted">Create each staff account in Firebase Authentication first, then assign the same email here. Cashiers can process sales; managers can manage daily operations. Only the owner can change access.</p><form id="staffAccessForm" class="formgrid"><div><label>Staff email</label><input name="email" type="email" required placeholder="staff@example.com"></div><div><label>Role</label><select name="role"><option value="cashier">Cashier</option><option value="manager">Manager</option></select></div><div><label>Display name (optional)</label><input name="name" placeholder="Staff name"></div><div class="wide"><button class="primary">Save / enable staff access</button></div></form><div class="spacer"></div><div id="staffAccessList" class="tablewrap"><p class="muted">Loading staff accounts…</p></div></section>';
  const fs=firebaseDb(),form=document.getElementById('staffAccessForm'),list=document.getElementById('staffAccessList');
  async function draw(){try{const snap=await fs.collection('pos_users').get();const rows=snap.docs.map(d=>({email:d.id,...d.data()}));list.innerHTML=rows.length?'<table><thead><tr><th>Email</th><th>Role</th><th>Status</th><th>Action</th></tr></thead><tbody>'+rows.map(u=>'<tr><td>'+esc(u.email)+'</td><td>'+esc(u.role)+'</td><td>'+(u.active?'Active':'Disabled')+'</td><td><button class="secondary smallbtn" data-toggle-access="'+esc(u.email)+'" data-active="'+(u.active?'true':'false')+'">'+(u.active?'Disable':'Enable')+'</button></td></tr>').join('')+'</tbody></table>':'<p class="muted">No staff access assigned yet.</p>';list.querySelectorAll('[data-toggle-access]').forEach(b=>b.onclick=async()=>{const email=b.dataset.toggleAccess;await fs.collection('pos_users').doc(email).set({active:b.dataset.active!=='true',updatedAt:new Date().toISOString()},{merge:true});notify('Staff access updated.');draw()})}catch(e){list.innerHTML='<p class="muted">Could not load staff list: '+esc(e.message)+'</p>'}}
- form.onsubmit=async e=>{e.preventDefault();const f=new FormData(form),email=String(f.get('email')||'').trim().toLowerCase(),role=String(f.get('role'));if(email===OWNER_EMAIL)return notify('The owner email is reserved.');try{await fs.collection('pos_users').doc(email).set({email,role,name:String(f.get('name')||'').trim(),active:true,updatedAt:new Date().toISOString()},{merge:true});form.reset();notify('Role saved. The staff member can now sign in.');draw()}catch(err){notify('Could not save role: '+err.message)}};
+ form.onsubmit=async e=>{e.preventDefault();const f=new FormData(form),email=String(f.get('email')||'').trim().toLowerCase(),role=String(f.get('role'));if(OWNER_EMAILS.includes(email))return notify('The owner email is reserved.');try{await fs.collection('pos_users').doc(email).set({email,role,name:String(f.get('name')||'').trim(),active:true,updatedAt:new Date().toISOString()},{merge:true});form.reset();notify('Role saved. The staff member can now sign in.');draw()}catch(err){notify('Could not save role: '+err.message)}};
  draw();
 }
 render();
