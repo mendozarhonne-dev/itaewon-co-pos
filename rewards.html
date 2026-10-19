@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#173f35">
+<title>Itaewon & Co. · My Rewards</title>
+<style>
+:root{color-scheme:light;--green:#173f35;--gold:#c7a66a;--paper:#fbf8f0;--ink:#24372f;--muted:#68756d;--line:#e4ddcf}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:var(--paper);color:var(--ink);font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;padding:22px 14px 42px}.wrap{max-width:520px;margin:0 auto}.brand{font-size:12px;letter-spacing:2px;font-weight:850;color:var(--green)}.brand span{display:inline-grid;place-items:center;border:1px solid var(--gold);border-radius:50%;width:27px;height:27px;margin-right:8px;color:var(--gold);font-size:17px}.hero{margin:24px 0 18px}.hero h1{font-size:32px;letter-spacing:-1.3px;margin:0 0 8px;color:var(--green)}.muted{color:var(--muted);line-height:1.55;font-size:14px}.panel{background:white;border:1px solid var(--line);border-radius:20px;padding:22px;box-shadow:0 12px 35px #173f350b;margin-top:16px}label{display:block;font-weight:700;font-size:13px;margin:14px 0 7px}input{width:100%;border:1px solid #cfc8b9;border-radius:10px;padding:13px 12px;font:inherit;font-size:16px;background:#fff}button{border:0;border-radius:10px;padding:13px 15px;font:inherit;font-weight:750;cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}.primary{width:100%;background:var(--green);color:white;margin-top:14px}.secondary{background:#f1ede3;color:var(--green)}.status{font-size:13px;line-height:1.5;margin-top:12px;overflow-wrap:anywhere}.error{color:#a42e2e}.success{color:#1e6748}.hidden{display:none!important}.card{background:var(--green);color:#fff;border-radius:22px;padding:22px;overflow:hidden;position:relative}.card:after{content:'&';position:absolute;right:10px;top:-48px;font-size:190px;color:#ffffff0b;font-weight:900;pointer-events:none}.eyebrow{color:#e1c78f;font-size:10px;font-weight:800;letter-spacing:2px}.card h2{margin:9px 0 4px;font-size:25px;position:relative;z-index:1}.memberid{color:#c9d8ce;font-size:12px;position:relative;z-index:1}.progressrow{display:flex;gap:7px;flex-wrap:wrap;margin:20px 0 12px;position:relative;z-index:1}.stamp{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;border:1px solid #9bb2a5;color:#dce7df;font-size:13px}.stamp.filled{background:var(--gold);border-color:var(--gold);color:#173f35;font-weight:900}.progress-label{font-weight:800;font-size:14px;position:relative;z-index:1}.bar{height:7px;background:#ffffff26;border-radius:99px;overflow:hidden;margin:10px 0 18px}.bar span{display:block;height:100%;background:var(--gold);border-radius:99px}.rewardbox{background:#ffffff12;border:1px solid #ffffff2b;border-radius:13px;padding:13px;position:relative;z-index:1}.rewardbox b{display:block;margin-bottom:4px}.rewardbox small{color:#e1e8e2;line-height:1.4}.footer{text-align:center;color:#788279;font-size:11px;margin-top:24px}.recaptcha{margin-top:12px;overflow:hidden}.rewardcount{display:flex;gap:10px;margin:14px 0}.metric{flex:1;border:1px solid var(--line);border-radius:13px;padding:13px}.metric b{display:block;font-size:24px;color:var(--green)}.metric small{font-size:11px;color:var(--muted)}@media(max-width:390px){.hero h1{font-size:28px}.panel{padding:17px}.stamp{width:27px;height:27px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><span>&amp;</span> ITAEWON &amp; CO.</div>
+  <header class="hero"><h1>Your Coffee Club.</h1><p class="muted">Check your stamps and rewards securely with the mobile number registered to your loyalty card.</p></header>
+  <section class="panel" id="loginPanel">
+    <h2 style="margin:0;color:#173f35">Open your loyalty card</h2>
+    <p class="muted">We’ll send a one-time SMS code to verify it’s you. Standard SMS charges may apply.</p>
+    <label for="phone">Philippine mobile number</label>
+    <input id="phone" type="tel" autocomplete="tel" placeholder="0917 123 4567" inputmode="tel">
+    <div id="recaptcha-container" class="recaptcha"></div>
+    <button id="sendCode" class="primary">Send verification code</button>
+    <div id="codeArea" class="hidden">
+      <label for="smsCode">SMS verification code</label>
+      <input id="smsCode" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="Enter the code">
+      <button id="verifyCode" class="primary">Verify and view card</button>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite"></div>
+  </section>
+  <section id="cardPanel" class="hidden">
+    <div class="card">
+      <div class="eyebrow">ITAEWON &amp; CO. · MEMBER REWARDS</div>
+      <h2 id="customerName">Your loyalty card</h2>
+      <div class="memberid" id="memberId"></div>
+      <div id="stamps" class="progressrow"></div>
+      <div class="progress-label" id="progressLabel"></div>
+      <div class="bar"><span id="progressBar" style="width:0%"></span></div>
+      <div class="rewardbox"><b id="rewardTitle">Your reward</b><small id="rewardDescription"></small></div>
+    </div>
+    <div class="rewardcount">
+      <div class="metric"><b id="rewardsReady">0</b><small>Rewards available</small></div>
+      <div class="metric"><b id="stampsToGo">0</b><small>Stamps to next reward</small></div>
+    </div>
+    <p class="muted">Your card updates after staff records a qualifying purchase or redeems a reward. To claim a reward, show this screen to the cashier.</p>
+    <button id="refreshCard" class="secondary" style="width:100%">Refresh my card</button>
+    <button id="signOut" class="secondary" style="width:100%;margin-top:9px">Sign out</button>
+    <div id="cardStatus" class="status" role="status"></div>
+  </section>
+  <div class="footer">Made for your everyday coffee runs · Itaewon &amp; Co.</div>
+</div>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script>
+(function(){
+'use strict';
+const config={apiKey:'AIzaSyD5nSZL-dOKWRqC7DssYH2g8lF7nuo2wnM',authDomain:'itaewon-co-pos.firebaseapp.com',projectId:'itaewon-co-pos',storageBucket:'itaewon-co-pos.firebasestorage.app',messagingSenderId:'1019984948238',appId:'1:1019984948238:web:267fd5f02e5822c89a205f',measurementId:'G-S6GT2KV1N2'};
+const $=id=>document.getElementById(id),authError=$('status'),cardStatus=$('cardStatus');
+const params=new URLSearchParams(location.search);let cardToken=params.get('id')||'';if(cardToken.startsWith('ITAEWON-CUST-'))cardToken=cardToken.slice('ITAEWON-CUST-'.length);
+let confirmation=null,verifier=null,loadedCustomerId=null;
+function phoneE164(value){let p=String(value||'').replace(/[\s().-]/g,'');if(p.startsWith('00'))p='+'+p.slice(2);if(p.startsWith('09')&&p.length===11)p='+63'+p.slice(1);else if(p.startsWith('639')&&p.length===12)p='+'+p;else if(p.startsWith('9')&&p.length===10)p='+63'+p;return /^\+639\d{9}$/.test(p)?p:''}
+function status(el,msg,isError){el.textContent=msg;el.className='status'+(isError?' error':' success')}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}
+if(!firebase.apps.length)firebase.initializeApp(config);
+const db=firebase.firestore();
+try{verifier=new firebase.auth.RecaptchaVerifier('recaptcha-container',{size:'normal'},firebase.auth());verifier.render().catch(e=>status(authError,'Please refresh the page to load the security check.',true))}catch(e){status(authError,'Could not load the security check. Refresh and try again.',true)}
+$('sendCode').onclick=async()=>{
+ const number=phoneE164($('phone').value);if(!number)return status(authError,'Enter a valid Philippine mobile number, e.g. 09171234567.',true);
+ $('sendCode').disabled=true;status(authError,'Sending SMS verification code…',false);
+ try{confirmation=await firebase.auth().signInWithPhoneNumber(number,verifier);$('codeArea').classList.remove('hidden');status(authError,'Code sent. Check your SMS messages.',false)}
+ catch(e){console.error(e);status(authError,e.code==='auth/too-many-requests'?'Too many attempts. Wait a while and try again.':(e.message||'Could not send SMS code.'),true);try{if(verifier)await verifier.render()}catch(_){}}
+ finally{$('sendCode').disabled=false}
+};
+$('verifyCode').onclick=async()=>{
+ const code=$('smsCode').value.trim();if(!confirmation||!code)return status(authError,'Enter the SMS code first.',true);
+ $('verifyCode').disabled=true;status(authError,'Verifying your number…',false);
+ try{await confirmation.confirm(code);await loadCard()}
+ catch(e){console.error(e);status(authError,e.code==='auth/invalid-verification-code'?'That code is not correct. Try again.':(e.message||'Verification failed.'),true)}
+ finally{$('verifyCode').disabled=false}
+};
+async function loadCard(){
+ const user=auth.currentUser;if(!user||!user.phoneNumber)throw Error('Phone verification is required.');
+ let doc=null;
+ if(cardToken){doc=await db.collection('public_loyalty_cards').doc(cardToken).get();if(!doc.exists)throw Error('We could not find that card. Ask staff to check your card QR.');}
+ else {const snap=await db.collection('public_loyalty_cards').where('phoneE164','==',user.phoneNumber).limit(2).get();if(snap.empty)throw Error('No loyalty card is linked to this verified number yet. Ask staff to register your card.');if(snap.size>1)throw Error('More than one card is linked to this number. Please ask staff to help.');doc=snap.docs[0];}
+ const customer=doc.data()||{};if(customer.phoneE164!==user.phoneNumber)throw Error('This phone number does not match that card. Sign in with the number registered at the cafe.');
+ loadedCustomerId=customer.id;renderCard(customer);$('loginPanel').classList.add('hidden');$('cardPanel').classList.remove('hidden');status(cardStatus,'Verified · card loaded securely.',false)
+}
+function renderCard(c){
+ const target=Math.max(1,Math.min(100,Number(c.target||5))),stamps=Math.max(0,Number(c.stamps||0)),progress=stamps%target,ready=Math.floor(stamps/target);
+ $('customerName').textContent=c.name||'Loyalty member';$('memberId').textContent='MEMBER ID · '+(c.id||'—');
+ $('stamps').innerHTML=Array.from({length:target},(_,i)=>'<span class="stamp '+(i<progress?'filled':'')+'">'+(i<progress?'✓':'✳')+'</span>').join('');
+ $('progressLabel').textContent=progress+' / '+target+' stamps toward your next reward';$('progressBar').style.width=(progress/target*100)+'%';
+ $('rewardTitle').textContent=ready>0?'You have a reward ready!':(c.rewardName||'Your reward');
+ $('rewardDescription').textContent=ready>0?'Show this screen to the cashier to claim '+ready+' '+(ready===1?'reward':'rewards')+'. Reward: '+(c.rewardName||'your reward')+'.':'Earn '+(target-progress)+' more '+((target-progress)===1?'stamp':'stamps')+' to unlock: '+(c.rewardName||'your reward')+'.';
+ $('rewardsReady').textContent=ready;$('stampsToGo').textContent=target-progress||target;
+}
+$('refreshCard').onclick=async()=>{try{await loadCard();status(cardStatus,'Your latest progress is shown.',false)}catch(e){status(cardStatus,e.message||'Could not refresh your card.',true)}};
+$('signOut').onclick=async()=>{await auth.signOut();location.href=location.pathname+(cardToken?'?id='+encodeURIComponent('ITAEWON-CUST-'+cardToken):'')};
+const auth=firebase.auth();
+auth.onAuthStateChanged(async user=>{if(user&&user.phoneNumber){try{await loadCard()}catch(e){$('loginPanel').classList.remove('hidden');$('cardPanel').classList.add('hidden');status(authError,e.message||'Could not load your card.',true)}}});
+})();
+</script>
+</body>
+</html>
