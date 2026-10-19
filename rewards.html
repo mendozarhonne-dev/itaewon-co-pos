@@ -109,7 +109,7 @@ $('createAccount').onclick=async()=>{
    status(authError,'Account created! Open the verification email, then return here and sign in with the same email and password. Your loyalty card request will be sent after verification.',false);
    await auth.signOut();
   }
- catch(e){console.error(e);status(authError,e.code==='auth/email-already-in-use'?'This email already has a Firebase account. Sign in with it or use “Forgot password?” if you do not know the password. No new loyalty card has been created yet.':(e.message||'Could not create account.'),true)}
+ catch(e){console.error(e);if(e.code==='auth/email-already-in-use'){setAuthMode('login');$('email').value=c.email;status(authError,'This email already has an account. You are now on Log in. Enter your password, or choose “Forgot password?” if needed. No new loyalty card has been created yet.',true)}else status(authError,e.message||'Could not create account.',true)}
  finally{$('createAccount').disabled=false}
 };
 $('resetPassword').onclick=async()=>{
