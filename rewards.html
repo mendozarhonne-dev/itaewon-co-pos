@@ -175,7 +175,7 @@ $('signIn').onclick=async()=>{
  finally{$('signIn').disabled=false}
 };
 $('sendVerify').onclick=async()=>{
- if(authCooldownActive())return; const c=credentials();if(!c.email||!c.password)return status(authError,'Enter your email and password first.',true);
+ const c=credentials();if(!c.email||!c.password)return status(authError,'Enter your email and password first.',true);
  try{let user=auth.currentUser;if(!user){const r=await auth.signInWithEmailAndPassword(c.email,c.password);user=r.user}if(user.emailVerified)return status(authError,'Your email is already verified. You can sign in to view your card.',false);await user.sendEmailVerification();await auth.signOut();status(authError,'Verification email sent. Check your inbox and spam folder.',false)}
  catch(e){const limited=authRateLimited(e);status(authError,limited||(e.message||'Could not send verification email.'),true)}
 };
