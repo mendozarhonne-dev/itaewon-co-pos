@@ -60,6 +60,7 @@ const $=id=>document.getElementById(id),authError=$('status'),cardStatus=$('card
 const params=new URLSearchParams(location.search);let cardToken=params.get('id')||'';if(cardToken.startsWith('ITAEWON-CUST-'))cardToken=cardToken.slice('ITAEWON-CUST-'.length);
 let loadedCustomerId=null;
 function status(el,msg,isError){el.textContent=msg;el.className='status'+(isError?' error':' success')}
+function withTimeout(promise,ms,message){return Promise.race([promise,new Promise((_,reject)=>setTimeout(()=>reject(new Error(message)),ms))])}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}
 if(!firebase.apps.length)firebase.initializeApp(config);
 const auth=firebase.auth(),db=firebase.firestore();
@@ -81,7 +82,10 @@ $('resetPassword').onclick=async()=>{
 $('signIn').onclick=async()=>{
  const c=credentials();if(!c.email||!c.password)return status(authError,'Enter your email and password.',true);
  $('signIn').disabled=true;status(authError,'Signing in…',false);
- try{await auth.signInWithEmailAndPassword(c.email,c.password)}
+ try{
+   await withTimeout(auth.signInWithEmailAndPassword(c.email,c.password),15000,'Sign-in is taking too long. Check your internet connection and try again.');
+   status(authError,'Signed in. Checking your email and loading your card…',false);
+ }
  catch(e){console.error(e);status(authError,e.code==='auth/invalid-credential'||e.code==='auth/wrong-password'?'Email or password is incorrect.':(e.message||'Could not sign in.'),true)}
  finally{$('signIn').disabled=false}
 };
@@ -92,11 +96,11 @@ $('sendVerify').onclick=async()=>{
 };
 async function loadCard(){
  const user=auth.currentUser;if(!user)throw Error('Sign in first.');
- await user.reload();
+ await withTimeout(user.reload(),12000,'Could not check your account. Please check your internet connection and try again.');
  if(!user.emailVerified){$('loginPanel').classList.remove('hidden');$('cardPanel').classList.add('hidden');status(authError,'Please open the verification email, verify your address, then sign in again.',true);return}
  const email=String(user.email||'').trim().toLowerCase();let doc=null;
- if(cardToken){doc=await db.collection('public_loyalty_cards').doc(cardToken).get();if(!doc.exists)throw Error('We could not find that card, or it is not linked to this verified email. Ask staff to check the email on your card.')}
- else {const snap=await db.collection('public_loyalty_cards').where('accountEmail','==',email).limit(2).get();if(snap.empty)throw Error('No card is linked to this email yet. Ask staff to register your email with your loyalty card.');if(snap.size>1)throw Error('More than one card is linked to this email. Please ask staff to help.');doc=snap.docs[0]}
+ if(cardToken){doc=await withTimeout(db.collection('public_loyalty_cards').doc(cardToken).get(),12000,'Signed in, but loading the card timed out. Please try Refresh my card or contact staff.');if(!doc.exists)throw Error('We could not find that card, or it is not linked to this verified email. Ask staff to check the email on your card.')}
+ else {const snap=await withTimeout(db.collection('public_loyalty_cards').where('accountEmail','==',email).limit(2).get(),12000,'Signed in, but searching for your card timed out. Check your connection or ask staff to check the card email.');if(snap.empty)throw Error('No card is linked to this email yet. Ask staff to register your email with your loyalty card.');if(snap.size>1)throw Error('More than one card is linked to this email. Please ask staff to help.');doc=snap.docs[0]}
  const customer=doc.data()||{};if(String(customer.accountEmail||'').trim().toLowerCase()!==email)throw Error('This card is linked to a different email address. Ask staff for help.');
  loadedCustomerId=customer.id;renderCard(customer);$('loginPanel').classList.add('hidden');$('cardPanel').classList.remove('hidden');status(cardStatus,'Verified · card loaded securely.',false)
 }
