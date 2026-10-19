@@ -64,7 +64,7 @@ function status(el,msg,isError){el.textContent=msg;el.className='status'+(isErro
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}
 if(!firebase.apps.length)firebase.initializeApp(config);
 const db=firebase.firestore();
-try{verifier=new firebase.auth.RecaptchaVerifier('recaptcha-container',{size:'normal'},firebase.auth());verifier.render().catch(e=>status(authError,'Please refresh the page to load the security check.',true))}catch(e){status(authError,'Could not load the security check. Refresh and try again.',true)}
+try{verifier=new firebase.auth.RecaptchaVerifier('recaptcha-container',{size:'normal'});verifier.render().catch(e=>status(authError,'Please refresh the page to load the security check.',true))}catch(e){status(authError,'Could not load the security check. Refresh and try again.',true)}
 $('sendCode').onclick=async()=>{
  const number=phoneE164($('phone').value);if(!number)return status(authError,'Enter a valid Philippine mobile number, e.g. 09171234567.',true);
  $('sendCode').disabled=true;status(authError,'Sending SMS verification code…',false);
