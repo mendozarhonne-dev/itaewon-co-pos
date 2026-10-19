@@ -111,10 +111,6 @@ async function processLoyaltySignupRequests(fs,snapshot){
  finally{processingSignupRequests=false}
 }
 function startCloudListeners(fs){
- if(['owner','manager'].includes(currentRole)){
-  cloudListeners.push(fs.collection('loyalty_signup_requests').onSnapshot(snap=>{processLoyaltySignupRequests(fs,snap)},err=>{console.error(err);cloudStatus('Customer signup requests blocked — check Firestore rules')}));
- }
-
  cloudListeners.forEach(unsub=>unsub());cloudListeners=[];
  cloudListeners.push(fs.collection('pos_config').doc('main').onSnapshot(doc=>{
   if(!doc.exists)return;const cfg=doc.data()||{};Object.keys(cfg).forEach(k=>db[k]=cfg[k]);
@@ -127,6 +123,9 @@ function startCloudListeners(fs){
    db[key]=snap.docs.map(d=>d.data());localSave();
    if(!cloudBusy){cloudBase=JSON.parse(JSON.stringify(db));if(page)render()}
   },err=>{console.error(err);cloudStatus('Cloud read blocked — check Firestore rules')}));
+ }
+ if(['owner','manager'].includes(currentRole)){
+  cloudListeners.push(fs.collection('loyalty_signup_requests').onSnapshot(snap=>{processLoyaltySignupRequests(fs,snap)},err=>{console.error(err);cloudStatus('Customer signup requests blocked — check Firestore rules')}));
  }
 }
 async function startCloudForUser(user){
