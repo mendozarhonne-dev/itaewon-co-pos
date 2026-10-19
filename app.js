@@ -98,8 +98,10 @@ async function processLoyaltySignupRequests(fs,snapshot){
    if(!email||!name){await doc.ref.update({processed:true,processStatus:'invalid-details',processedAt:new Date().toISOString()});continue}
    let member=(db.loyaltyCustomers||[]).find(c=>String(c.accountEmail||'').trim().toLowerCase()===email);
    if(!member){
-    const phoneMember=(db.loyaltyCustomers||[]).find(c=>normalizeLoyaltyPhone(c.phoneE164||c.contact)===phoneE164);
-    if(phoneMember){await doc.ref.update({processed:true,processStatus:'phone-already-linked',processedAt:new Date().toISOString()});continue}
+     if(phoneE164){
+      const phoneMember=(db.loyaltyCustomers||[]).find(c=>normalizeLoyaltyPhone(c.phoneE164||c.contact)===phoneE164);
+      if(phoneMember){await doc.ref.update({processed:true,processStatus:'phone-already-linked',processedAt:new Date().toISOString()});continue}
+     }
     const id='IC'+Date.now().toString(36).toUpperCase()+Math.random().toString(36).slice(2,6).toUpperCase();
     member={id,name,contact,phoneE164,accountEmail:email,gender:'neutral',avatar:createLoyaltyAvatar('neutral',id),qrToken:'ITAEWON-CUST-'+id,stamps:0,visits:0,totalSpent:0,createdAt:new Date().toISOString(),signupSource:'website'};
     db.loyaltyCustomers.push(member);
